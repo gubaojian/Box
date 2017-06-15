@@ -38,8 +38,8 @@ namespace box
         }
 
         Value(Float _value, Unit _unit = Unit::Pixels) :
-        value(_value),
-        unit(_unit)
+            value(_value),
+            unit(_unit)
         {
         }
 
@@ -97,6 +97,21 @@ namespace box
     STICK_API void remove(brick::Entity _e);
     STICK_API stick::Error layout(brick::Entity _e, Float _width = undefined, Float _height = undefined);
 
+    STICK_API void setSize(brick::Entity _e, Float _width, Float _height, Unit _unit = Unit::Pixels);
+    STICK_API void setSize(brick::Entity _e, Value _width, Value _height);
+    STICK_API void setWidth(brick::Entity _e, Float _width, Unit _unit = Unit::Pixels);
+    STICK_API void setHeight(brick::Entity _e, Float _height, Unit _unit = Unit::Pixels);
+
+    STICK_API void setMinSize(brick::Entity _e, Float _width, Float _height, Unit _unit = Unit::Pixels);
+    STICK_API void setMinSize(brick::Entity _e, Value _width, Value _height);
+    STICK_API void setMinWidth(brick::Entity _e, Float _width, Unit _unit = Unit::Pixels);
+    STICK_API void setMinHeight(brick::Entity _e, Float _height, Unit _unit = Unit::Pixels);
+
+    STICK_API void setMaxSize(brick::Entity _e, Float _width, Float _height, Unit _unit = Unit::Pixels);
+    STICK_API void setMaxSize(brick::Entity _e, Value _width, Value _height);
+    STICK_API void setMaxWidth(brick::Entity _e, Float _width, Unit _unit = Unit::Pixels);
+    STICK_API void setMaxHeight(brick::Entity _e, Float _height, Unit _unit = Unit::Pixels);
+
     // STICK_API void appendToDebugString(
     //                             const brick::Entity & _e,
     //                             stick::Size _indentLevel,
@@ -114,6 +129,42 @@ namespace box
             i = i.get<comps::Parent>();
         }
         return stick::Maybe<typename C::ValueType &>();
+    }
+
+    template<class F>
+    brick::Entity findChild(brick::Entity _e, F _func)
+    {
+        auto mc = _e.maybe<comps::Children>();
+        if (mc)
+        {
+            for (brick::Entity c : *mc)
+            {
+                if (_func(c))
+                    return c;
+            }
+        }
+
+        return brick::Entity();
+    }
+
+    template<class F>
+    brick::Entity findChildRecursively(brick::Entity _e, F _func)
+    {
+        //@TODO: instead of a recursive function call make this iterative to
+        // potentially avoid running into max stack depth errors?
+        auto mc = _e.maybe<comps::Children>();
+        if (mc)
+        {
+            for (brick::Entity c : *mc)
+            {
+                if (_func(c))
+                    return c;
+                auto ret = findChildRecursively(c, _func);
+                if(ret) return ret;
+            }
+        }
+
+        return brick::Entity();
     }
 }
 

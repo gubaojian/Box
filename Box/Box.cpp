@@ -8,6 +8,77 @@ namespace box
 
     namespace detail
     {
+        bool isUndefined(Float _value)
+        {
+            return std::isnan(_value);
+        }
+
+        bool isWidthDefinite(Entity _e)
+        {
+            auto m = _e.maybe<comps::Width>();
+            if (m && (*m).unit != Unit::Percent)
+                return true;
+            return false;
+        }
+
+        bool isHeightDefinite(Entity _e)
+        {
+            auto m = _e.maybe<comps::Height>();
+            if (m && (*m).unit != Unit::Percent)
+                return true;
+            return false;
+        }
+
+        bool isHeightDefined(Entity _e)
+        {
+            auto v = _e.maybe<comps::Height>();
+            return v && !isUndefined((*v).value);
+        }
+
+        bool isWidthDefined(Entity _e)
+        {
+            auto v = _e.maybe<comps::Width>();
+            return v && !isUndefined((*v).value);
+        }
+
+        bool isDirty(Entity _e)
+        {
+            if (auto df = _e.maybe<comps::Dirty>())
+            {
+                return *df;
+            }
+            return false;
+        }
+
+        void markDirty(Entity _e)
+        {
+            //if it's allready marked dirty, we done here
+            if (isDirty(_e))
+                return;
+
+            //otherwise do da stuff
+            _e.set<comps::Dirty>(true);
+
+            //check if we need to mark the parent dirty
+            auto p = _e.maybe<comps::Parent>();
+            if (p)
+            {
+                if (!isWidthDefined(*p) || !isHeightDefined(*p))
+                    markDirty(*p);
+            }
+
+            //set the children dirty that don't have definite dimensions
+            auto mc = _e.maybe<comps::Children>();
+            if (mc)
+            {
+                for (Entity c : *mc)
+                {
+                    if (!isWidthDefinite(c) || !isHeightDefinite(c))
+                        markDirty(c);
+                }
+            }
+        }
+
         void removeFromParent(Entity _e)
         {
             auto mp = _e.maybe<comps::Parent>();
@@ -20,6 +91,12 @@ namespace box
                     STICK_ASSERT(it != children.end());
                     children.remove(it);
                     _e.set<comps::Parent>(Entity());
+
+                    //mark the parent dirty if its size is not defined
+                    if (!isWidthDefined(*mp) || !isHeightDefined(*mp))
+                    {
+                        detail::markDirty(*mp);
+                    }
                 }
             }
         }
@@ -31,11 +108,6 @@ namespace box
                 removeFromParent(_e);
             _e.destroy();
         }
-    }
-
-    bool isUndefined(Float _value)
-    {
-        return std::isnan(_value);
     }
 
     Hub & defaultHub()
@@ -103,6 +175,84 @@ namespace box
     void remove(Entity _e)
     {
         detail::removeImpl(_e, true);
+    }
+
+    void setSize(Entity _e, Float _width, Float _height, Unit _unit)
+    {
+        _e.set<comps::Width>(Value(_width, _unit));
+        _e.set<comps::Height>(Value(_height, _unit));
+        detail::markDirty(_e);
+    }
+
+    void setSize(Entity _e, Value _width, Value _height)
+    {
+        _e.set<comps::Width>(_width);
+        _e.set<comps::Height>(_height);
+        detail::markDirty(_e);
+    }
+
+    void setWidth(Entity _e, Float _width, Unit _unit)
+    {
+        _e.set<comps::Width>(Value(_width, _unit));
+        detail::markDirty(_e);
+    }
+
+    void setHeight(Entity _e, Float _height, Unit _unit)
+    {
+        _e.set<comps::Height>(Value(_height, _unit));
+        detail::markDirty(_e);
+    }
+
+    void setMinSize(Entity _e, Float _width, Float _height, Unit _unit)
+    {
+        _e.set<comps::MinWidth>(Value(_width, _unit));
+        _e.set<comps::MinHeight>(Value(_height, _unit));
+        detail::markDirty(_e);
+    }
+
+    void setMinSize(Entity _e, Value _width, Value _height)
+    {
+        _e.set<comps::MinWidth>(_width);
+        _e.set<comps::MinHeight>(_height);
+        detail::markDirty(_e);
+    }
+
+    void setMinWidth(Entity _e, Float _width, Unit _unit)
+    {
+        _e.set<comps::MinWidth>(Value(_width, _unit));
+        detail::markDirty(_e);
+    }
+
+    void setMinHeight(Entity _e, Float _height, Unit _unit)
+    {
+        _e.set<comps::MinHeight>(Value(_height, _unit));
+        detail::markDirty(_e);
+    }
+
+    void setMaxSize(Entity _e, Float _width, Float _height, Unit _unit)
+    {
+        _e.set<comps::MaxWidth>(Value(_width, _unit));
+        _e.set<comps::MaxHeight>(Value(_height, _unit));
+        detail::markDirty(_e);
+    }
+
+    void setMaxSize(Entity _e, Value _width, Value _height)
+    {
+        _e.set<comps::MaxWidth>(_width);
+        _e.set<comps::MaxHeight>(_height);
+        detail::markDirty(_e);
+    }
+
+    void setMaxWidth(Entity _e, Float _width, Unit _unit)
+    {
+        _e.set<comps::MaxWidth>(Value(_width, _unit));
+        detail::markDirty(_e);
+    }
+
+    void setMaxHeight(Entity _e, Float _height, Unit _unit)
+    {
+        _e.set<comps::MaxHeight>(Value(_height, _unit));
+        detail::markDirty(_e);
     }
 
     namespace detail
@@ -175,19 +325,6 @@ namespace box
             return generation(_e) + 1;
         }
 
-        bool isWidthDefinite(Entity _e)
-        {
-            auto m = _e.maybe<comps::Width>();
-            if (m && (*m).unit != Unit::Percent)
-                return true;
-            return false;
-        }
-
-        bool isHeightDefinite(Entity _e)
-        {
-
-        }
-
         Float layoutLine(Entity _e, Float _availableSpace)
         {
             //layoutImpl()
@@ -222,6 +359,20 @@ namespace box
                 }
             }
         }
+
+        // bool layoutImplStarter(Entity _e,
+        //                        Float _x, Float _y,
+        //                        Float _availableWidth, Float _availableHeight,
+        //                        Float _parentWidth, Float _parentHeight, Size _generation,
+        //                        Error & _outError)
+        // {
+        //     if (!isDirty(_e))
+        //     {
+        //         return false;
+        //     }
+        //     return layoutImpl(_e, _x, _y, _availableWidth, _availableHeight,
+        //                       _parentWidth, _parentHeight, _generation, _outError);
+        // }
 
         Vec2f generateLines(Entity _e, Float _x, Float _y, Float _availableWidth, Float _availableHeight,
                             Float _parentWidth, Float _parentHeight,
@@ -285,7 +436,10 @@ namespace box
                             printf("RELAYOUT STRETCH\n");
                             Rect & b = c.get<comps::ComputedLayout>().box;
                             b.setSize(b.width(), lineHeight);
+
+                            //@TODO: the mark dirty call is slow and ugly :(
                             DynamicArray<Line> lines;
+                            detail::markDirty(c);
                             generateLines(c, b.min().x, b.min().y, b.width(), b.height(), b.width(), b.height(), _generation, lines, _outError);
                             //@TODO: Handle error?
                         }
@@ -326,7 +480,7 @@ namespace box
                             else if (*mj == Justify::Center || *mj == Justify::End)
                             {
                                 Float extraSpace = spaceLeft / 2;
-                                if(*mj == Justify::End)
+                                if (*mj == Justify::End)
                                     extraSpace = spaceLeft;
                                 for (stick::Size i = 0; i < line.items.count(); ++i)
                                 {
@@ -347,6 +501,9 @@ namespace box
                         Error & _outError)
         {
             printf("layoutImpl %s %lu %lu %f %f\n", _e.get<comps::Name>().cString(), generation(_e), _generation, _x, _y);
+
+            if(!isDirty(_e))
+                return false;
 
             //Direction dir = resolveDirection(_e, _parentDirection);
             auto mcl = _e.maybe<comps::ComputedLayout>();
@@ -468,6 +625,8 @@ namespace box
                 lines.clear();
                 generateLines(_e, _x, _y, w, h, w, h, generation, lines, _outError);
             }*/
+
+            _e.removeComponent<comps::Dirty>();
 
             return true;
         }
