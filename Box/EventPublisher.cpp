@@ -17,9 +17,9 @@ namespace box
 
     }
 
-    void EventPublisher::publish(EventPtr & _event)
+    void EventPublisher::publishEvent(EventPtr _event)
     {
-        queueEvent(_event);
+        queueEvent(std::move(_event));
         publish();
     }
 
@@ -27,7 +27,9 @@ namespace box
     {
         beginPublishing();
 
-        stick::DynamicArray<Event *> evts;
+        printf("A\n");
+
+        stick::DynamicArray<Event *> evts(m_eventQueue.allocator());
         {
             ScopedLock<Mutex> lck;
             evts.resize(m_eventQueue.count());
@@ -37,9 +39,12 @@ namespace box
             }
         }
 
+        printf("B\n");
+
         MappedStorage::RawPtrArray callbacks;
         for (Event * _e : evts)
         {
+            printf("C\n");
             callbacks.clear();
 
             {
@@ -47,6 +52,7 @@ namespace box
                 auto it = m_storage.callbackMap.find(_e->eventTypeID());
                 if (it != m_storage.callbackMap.end())
                 {
+                    printf("FOUND DA CALLBACKS\n");
                     //we copy the array here so we can savely add new callbacks from within callbacks etc.
                     callbacks = it->value;
                 }
@@ -54,6 +60,7 @@ namespace box
 
             for(auto * cb : callbacks)
             {
+                printf("CALL IT BABY\n");
                 cb->call(*_e);
             }
         }
@@ -62,11 +69,12 @@ namespace box
             ScopedLock<Mutex> lck;
             m_eventQueue.clear();
         }
+        printf("D\n");
 
         endPublishing();
     }
 
-    void EventPublisher::queueEvent(EventPtr & _event)
+    void EventPublisher::queueEvent(EventPtr _event)
     {
         ScopedLock<Mutex> lck(m_eventQueueMutex);
         m_eventQueue.append(std::move(_event));

@@ -49,8 +49,7 @@ namespace box
      * Usually you derive from this class, rather than from Event directly.
      */
     template<class T>
-    class STICK_API EventT :
-        public Event
+    class STICK_API EventT : public Event
     {
     public:
 
@@ -90,7 +89,7 @@ namespace box
     //  * It is your responsibility to ensure that _from can actually be casted to T.
     //  * @param _from The Event you want to cast to T.
     //  * @return A reference to the event of type T.
-     
+
     // template<class T>
     // T & eventCast(const EventPtr & _from)
     // {

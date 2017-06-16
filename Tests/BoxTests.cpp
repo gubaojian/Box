@@ -1,6 +1,7 @@
 #include <Box/Box.hpp>
 #include <Box/Event.hpp>
 #include <Box/EventPublisher.hpp>
+#include <Box/MouseState.hpp>
 #include <Stick/Test.hpp>
 
 using namespace stick;
@@ -8,17 +9,20 @@ using namespace box;
 
 struct TestEvent : public EventT<TestEvent> {};
 
+static bool bWasCalled = false;
 static void freeFunctionCallback(const TestEvent & _evt)
 {
-
+    bWasCalled = true;
 }
 
 struct TestClass
 {
     void memberCallback(const TestEvent & _evt)
     {
-
+        bWasCalled = true;
     }
+
+    bool bWasCalled = false;
 };
 
 const Suite spec[] =
@@ -166,14 +170,44 @@ const Suite spec[] =
     // },
     SUITE("Callback Tests")
     {
+        //@Note: This is not really testing much but rather checking if
+        //things compile as expected :)
         using Callback = box::detail::CallbackT<void, box::Event>;
-        
+
         Callback cb(&freeFunctionCallback);
 
         TestClass tc;
         Callback cb2(&tc, &TestClass::memberCallback);
 
-        Callback cb3([](const TestEvent & _evt){});
+
+        bool bLamdaCalled = false;
+        Callback cb3([&](const TestEvent & _evt) { bLamdaCalled = true; });
+
+        cb.call(TestEvent());
+        EXPECT(bWasCalled);
+
+        cb2.call(TestEvent());
+        EXPECT(tc.bWasCalled);
+
+        cb3.call(TestEvent());
+        EXPECT(bLamdaCalled);
+    },
+    SUITE("EventPublisher Tests")
+    {
+        bWasCalled = false;
+        EventPublisher publisher;
+
+        publisher.addEventCallback(&freeFunctionCallback);
+        TestClass tc;
+        publisher.addEventCallback(EventPublisher::Callback(&tc, &TestClass::memberCallback));
+
+        bool bLamdaCalled = false;
+        publisher.addEventCallback([&](const TestEvent & _evt) { bLamdaCalled = true; });
+
+        publisher.publishEvent<TestEvent>();
+        EXPECT(bWasCalled);
+        EXPECT(tc.bWasCalled);
+        EXPECT(bLamdaCalled);
     }
 };
 

@@ -121,6 +121,11 @@ namespace box
                 holder = stick::defaultAllocator().create<FT>(_functor);
             }
 
+            Ret call(const EventBase & _evt) const
+            {
+                return holder->call(_evt);
+            }
+
             CallbackBaseType * holder;
             stick::TypeID eventTypeID;
         };

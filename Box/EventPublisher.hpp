@@ -16,7 +16,7 @@ namespace box
         using Callback = detail::CallbackT<void, Event>;
         using EventQueue = stick::DynamicArray<EventPtr>;
         using MappedStorage = detail::MappedCallbackStorageT<typename Callback::CallbackBaseType>;
-        
+
         EventPublisher(stick::Allocator & _alloc = stick::defaultAllocator());
 
         /**
@@ -25,14 +25,28 @@ namespace box
         virtual ~EventPublisher();
 
 
-        void queueEvent(EventPtr & _event);
+        void queueEvent(EventPtr _event);
+
+        template<class T, class...Args>
+        void queueEvent(Args..._args)
+        {
+            auto evt = stick::makeUnique<T>(m_eventQueue.allocator(), _args...);
+            queueEvent(std::move(evt));
+        }
 
         /**
          * @brief Publish an event to all registered subscribers.
          *
          * @param _event The event to publish.
          */
-        void publish(EventPtr & _event);
+        void publishEvent(EventPtr _event);
+
+        template<class T, class...Args>
+        void publishEvent(Args..._args)
+        {
+            queueEvent<T>(_args...);
+            publish();
+        }
 
         void publish();
 

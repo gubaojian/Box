@@ -14,12 +14,16 @@ Box/Box.hpp
 Box/Constants.hpp
 Box/Event.hpp
 Box/EventPublisher.hpp
+Box/MouseEvents.hpp
+Box/MouseState.hpp
 )
 
 set (BOXSRC 
 Box/Box.cpp
 Box/Event.cpp
 Box/EventPublisher.cpp
+Box/MouseEvents.cpp
+Box/MouseState.cpp
 )
 
 add_library (Box SHARED ${BOXSRC})
