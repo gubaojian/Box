@@ -13,6 +13,7 @@ Box/BasicTypes.hpp
 Box/Box.hpp
 Box/Constants.hpp
 Box/Event.hpp
+Box/EventForwarder.hpp
 Box/EventPublisher.hpp
 Box/MouseEvents.hpp
 Box/MouseState.hpp
@@ -21,6 +22,7 @@ Box/MouseState.hpp
 set (BOXSRC 
 Box/Box.cpp
 Box/Event.cpp
+Box/EventForwarder.cpp
 Box/EventPublisher.cpp
 Box/MouseEvents.cpp
 Box/MouseState.cpp
