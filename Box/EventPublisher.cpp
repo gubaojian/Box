@@ -41,6 +41,12 @@ namespace box
 
         printf("B\n");
 
+        DynamicArray<EventForwarder *> forwarders;
+        {
+            ScopedLock<Mutex>(m_forwarderMutex);
+            forwarders = m_forwarders;
+        }
+
         MappedStorage::RawPtrArray callbacks;
         for (Event * _e : evts)
         {
@@ -52,16 +58,19 @@ namespace box
                 auto it = m_storage.callbackMap.find(_e->eventTypeID());
                 if (it != m_storage.callbackMap.end())
                 {
-                    printf("FOUND DA CALLBACKS\n");
                     //we copy the array here so we can savely add new callbacks from within callbacks etc.
                     callbacks = it->value;
                 }
             }
 
-            for(auto * cb : callbacks)
+            for (auto * cb : callbacks)
             {
-                printf("CALL IT BABY\n");
                 cb->call(*_e);
+            }
+
+            for (auto * f : forwarders)
+            {
+                f->forward(*_e);
             }
         }
 
@@ -100,5 +109,19 @@ namespace box
     void EventPublisher::endPublishing()
     {
 
+    }
+
+    void EventPublisher::addEventForwarder(EventForwarder & _forwarder)
+    {
+        ScopedLock<Mutex> lck(m_forwarderMutex);
+        m_forwarders.append(&_forwarder);
+    }
+
+    void EventPublisher::removeEventForwader(EventForwarder & _forwarder)
+    {
+        ScopedLock<Mutex> lck(m_forwarderMutex);
+        auto it = stick::find(m_forwarders.begin(), m_forwarders.end(), &_forwarder);
+        if (it != m_forwarders.end())
+            m_forwarders.remove(it);
     }
 }

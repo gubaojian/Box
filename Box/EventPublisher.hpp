@@ -1,11 +1,8 @@
 #ifndef BOX_EVENTPUBLISHER_HPP
 #define BOX_EVENTPUBLISHER_HPP
 
-#include <Box/Event.hpp>
-#include <Box/Private/Callback.hpp>
-#include <Box/Private/MappedCallbackStorage.hpp>
+#include <Box/EventForwarder.hpp>
 #include <Stick/Mutex.hpp>
-#include <Stick/DynamicArray.hpp>
 
 namespace box
 {
@@ -16,6 +13,7 @@ namespace box
         using Callback = detail::CallbackT<void, Event>;
         using EventQueue = stick::DynamicArray<EventPtr>;
         using MappedStorage = detail::MappedCallbackStorageT<typename Callback::CallbackBaseType>;
+        using ForwarderArray = stick::DynamicArray<EventForwarder*>;
 
         EventPublisher(stick::Allocator & _alloc = stick::defaultAllocator());
 
@@ -58,6 +56,12 @@ namespace box
          */
         void removeEventCallback(const CallbackID & _id);
 
+        
+        void addEventForwarder(EventForwarder & _forwarder);
+
+        void removeEventForwader(EventForwarder & _forwarder);
+
+
         /**
          * @brief Can be overwritten if specific things need to happen right before the publisher emits its events.
          */
@@ -67,6 +71,7 @@ namespace box
          * @brief Can be overwritten if specific things need to happen right after the publisher emits its events.
          */
         virtual void endPublishing();
+
 
     protected:
 
@@ -80,6 +85,8 @@ namespace box
         MappedStorage m_storage;
         mutable stick::Mutex m_eventQueueMutex;
         EventQueue m_eventQueue;
+        mutable stick::Mutex m_forwarderMutex;
+        ForwarderArray m_forwarders;
     };
 }
 
