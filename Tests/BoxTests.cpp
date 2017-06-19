@@ -8,11 +8,22 @@
 using namespace stick;
 using namespace box;
 
-struct TestEvent : public EventT<TestEvent> {};
+struct TestEvent : public EventT<TestEvent> 
+{
+    TestEvent(Int32 _num = 128) : 
+    someMember(_num)
+    {
 
+    }
+
+    Int32 someMember = 128;
+};
+
+static TestEvent lastTestEvent;
 static bool bWasCalled = false;
 static void freeFunctionCallback(const TestEvent & _evt)
 {
+    lastTestEvent = _evt;
     bWasCalled = true;
 }
 
@@ -20,10 +31,10 @@ struct TestClass
 {
     void memberCallback(const TestEvent & _evt)
     {
-        bWasCalled = true;
+        counter++;
     }
 
-    bool bWasCalled = false;
+    Int32 counter = 0;
 };
 
 const Suite spec[] =
@@ -188,7 +199,7 @@ const Suite spec[] =
         EXPECT(bWasCalled);
 
         cb2.call(TestEvent());
-        EXPECT(tc.bWasCalled);
+        EXPECT(tc.counter == 1);
 
         cb3.call(TestEvent());
         EXPECT(bLamdaCalled);
@@ -207,7 +218,7 @@ const Suite spec[] =
 
         publisher.publish(TestEvent());
         EXPECT(bWasCalled);
-        EXPECT(tc.bWasCalled);
+        EXPECT(tc.counter == 1);
         EXPECT(bLamdaCalled);
     },
     SUITE("EventForwarder Tests")
@@ -222,10 +233,24 @@ const Suite spec[] =
         bool bLamdaCalled = false;
         publisher.addEventCallback([&](const TestEvent & _evt) { bLamdaCalled = true; });
 
+        publisher.addEventFilter([&](const TestEvent & _evt) { return _evt.someMember < 128; });
+        publisher.addEventModifier([&](const TestEvent & _evt) { auto ret = stick::makeUnique<TestEvent>(_evt); ret->someMember = 99; return ret; });
+
+        EventForwarder child;
+        publisher.addForwarder(child);
+
+        int childCalledCount = 0;
+        child.addEventCallback([&](const TestEvent & _evt) { childCalledCount++; });
+
         publisher.publish(TestEvent());
+        //this event should be filtered
+        publisher.publish(TestEvent(20));
         EXPECT(bWasCalled);
-        EXPECT(tc.bWasCalled);
+        //check if the event modifier worked
+        EXPECT(lastTestEvent.someMember == 99);
+        EXPECT(tc.counter == 1);
         EXPECT(bLamdaCalled);
+        EXPECT(childCalledCount == 1);
     }
 };
 
