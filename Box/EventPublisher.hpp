@@ -1,35 +1,88 @@
 #ifndef BOX_EVENTPUBLISHER_HPP
 #define BOX_EVENTPUBLISHER_HPP
 
-#include <Box/EventForwarder.hpp>
+#include <Box/Private/Callback.hpp>
+#include <Box/Private/MappedCallbackStorage.hpp>
 #include <Stick/Mutex.hpp>
+#include <Stick/ScopedLock.hpp>
 
 namespace box
 {
-    class STICK_API EventPublisher
+    namespace detail
+    {
+        template<class PublisherType>
+        struct STICK_API PublishingPolicyBasic
+        {
+            using MappedStorage = typename PublisherType::MappedStorage;
+            using MutexType = stick::NoMutex;
+
+            inline void publish(const Event & _evt, const MappedStorage & _callbacks)
+            {
+                auto it = _callbacks.callbackMap.find(_evt.eventTypeID());
+                if (it != _callbacks.callbackMap.end())
+                {
+                    for (auto * cb : it->value)
+                    {
+                        cb->call(_evt);
+                    }
+                }
+            }
+
+            mutable MutexType mutex;
+        };
+
+        template<class PublisherType>
+        struct STICK_API PublishingPolicyLocking
+        {
+            using MappedStorage = typename PublisherType::MappedStorage;
+            using MutexType = stick::Mutex;
+
+            inline void publish(const Event & _evt, const MappedStorage & _callbacks)
+            {
+                typename MappedStorage::RawPtrArray callbacks(_callbacks.storage.allocator());
+                {
+                    stick::ScopedLock<MutexType> lck(mutex);
+                    auto it = _callbacks.callbackMap.find(_evt.eventTypeID());
+                    if (it != _callbacks.callbackMap.end())
+                    {
+                        //we copy the array here so we can savely add new callbacks from within callbacks etc.
+                        callbacks = it->value;
+                    }
+                }
+
+                for (auto * cb : callbacks)
+                {
+                    cb->call(_evt);
+                }
+            }
+
+            mutable MutexType mutex;
+        };
+    }
+
+    template<template<class> class PublishingPolicyT>
+    class STICK_API EventPublisherT
     {
     public:
 
+        using PublishingPolicy = PublishingPolicyT<EventPublisherT>;
         using Callback = detail::CallbackT<void, Event>;
-        using EventQueue = stick::DynamicArray<EventPtr>;
         using MappedStorage = detail::MappedCallbackStorageT<typename Callback::CallbackBaseType>;
-        using ForwarderArray = stick::DynamicArray<EventForwarder*>;
 
-        EventPublisher(stick::Allocator & _alloc = stick::defaultAllocator());
+
+        EventPublisherT(stick::Allocator & _alloc = stick::defaultAllocator()) :
+            m_alloc(&_alloc),
+            m_storage(_alloc)
+        {
+
+        }
 
         /**
          * @brief Virtual Destructor, you usually derive from this class.
          */
-        virtual ~EventPublisher();
-
-
-        void queueEvent(EventPtr _event);
-
-        template<class T, class...Args>
-        void queueEvent(Args..._args)
+        virtual ~EventPublisherT()
         {
-            auto evt = stick::makeUnique<T>(m_eventQueue.allocator(), _args...);
-            queueEvent(std::move(evt));
+
         }
 
         /**
@@ -37,57 +90,66 @@ namespace box
          *
          * @param _event The event to publish.
          */
-        void publishEvent(EventPtr _event);
-
-        template<class T, class...Args>
-        void publishEvent(Args..._args)
+        void publish(const Event & _event)
         {
-            queueEvent<T>(_args...);
-            publish();
+            beginPublishing(_event);
+            m_policy.publish(_event, m_storage);
+            endPublishing(_event);
         }
 
-        void publish();
+        // template<class T, class...Args>
+        // void publish(Args..._args)
+        // {
+        //     publish(stick::makeUnique<T>(*m_alloc, _args...));
+        // }
 
-        CallbackID addEventCallback(const Callback & _cb);
+        CallbackID addEventCallback(const Callback & _cb)
+        {
+            stick::ScopedLock<typename PublishingPolicy::MutexType> lock(m_policy.mutex);
+            m_storage.addCallback({nextID(), _cb.eventTypeID}, _cb.holder);
+        }
 
         /**
          * @brief Removes a callback.
          * @param _id The callback id to remove.
          */
-        void removeEventCallback(const CallbackID & _id);
-
-        
-        void addEventForwarder(EventForwarder & _forwarder);
-
-        void removeEventForwader(EventForwarder & _forwarder);
-
+        void removeEventCallback(const CallbackID & _id)
+        {
+            stick::ScopedLock<typename PublishingPolicy::MutexTye> lock(m_policy.mutex);
+            m_storage.removeCallback(_id);
+        }
 
         /**
          * @brief Can be overwritten if specific things need to happen right before the publisher emits its events.
          */
-        virtual void beginPublishing();
+        virtual void beginPublishing(const Event & _evt)
+        {
+
+        }
 
         /**
          * @brief Can be overwritten if specific things need to happen right after the publisher emits its events.
          */
-        virtual void endPublishing();
+        virtual void endPublishing(const Event & _evt)
+        {
+
+        }
 
 
     protected:
 
         inline stick::Size nextID() const
         {
-            static std::atomic<stick::Size> s_id(0);
+            static stick::Size s_id(0);
             return s_id++;
         }
 
-        mutable stick::Mutex m_callbackMutex;
+        stick::Allocator * m_alloc;
         MappedStorage m_storage;
-        mutable stick::Mutex m_eventQueueMutex;
-        EventQueue m_eventQueue;
-        mutable stick::Mutex m_forwarderMutex;
-        ForwarderArray m_forwarders;
+        PublishingPolicy m_policy;
     };
+
+    using EventPublisher = EventPublisherT<detail::PublishingPolicyBasic>;
 }
 
 #endif //BOX_EVENTPUBLISHER_HPP

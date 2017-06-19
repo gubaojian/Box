@@ -22,8 +22,6 @@ Box/MouseState.hpp
 set (BOXSRC 
 Box/Box.cpp
 Box/Event.cpp
-Box/EventForwarder.cpp
-Box/EventPublisher.cpp
 Box/MouseEvents.cpp
 Box/MouseState.cpp
 )

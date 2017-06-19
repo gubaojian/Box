@@ -1,6 +1,7 @@
 #include <Box/Box.hpp>
 #include <Box/Event.hpp>
 #include <Box/EventPublisher.hpp>
+#include <Box/EventForwarder.hpp>
 #include <Box/MouseState.hpp>
 #include <Stick/Test.hpp>
 
@@ -204,7 +205,24 @@ const Suite spec[] =
         bool bLamdaCalled = false;
         publisher.addEventCallback([&](const TestEvent & _evt) { bLamdaCalled = true; });
 
-        publisher.publishEvent<TestEvent>();
+        publisher.publish(TestEvent());
+        EXPECT(bWasCalled);
+        EXPECT(tc.bWasCalled);
+        EXPECT(bLamdaCalled);
+    },
+    SUITE("EventForwarder Tests")
+    {
+        bWasCalled = false;
+        EventForwarder publisher;
+
+        publisher.addEventCallback(&freeFunctionCallback);
+        TestClass tc;
+        publisher.addEventCallback(EventForwarder::Callback(&tc, &TestClass::memberCallback));
+
+        bool bLamdaCalled = false;
+        publisher.addEventCallback([&](const TestEvent & _evt) { bLamdaCalled = true; });
+
+        publisher.publish(TestEvent());
         EXPECT(bWasCalled);
         EXPECT(tc.bWasCalled);
         EXPECT(bLamdaCalled);
