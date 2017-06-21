@@ -29,8 +29,6 @@ namespace box
         template<class R, class... Args>
         struct FunctionTraits<R(Args...)>
         {
-            using Arguments = std::tuple<Args...>;
-            
             /**
              * @brief R The return type of the function.
              */

@@ -1,7 +1,6 @@
 #ifndef BOX_EVENTPUBLISHER_HPP
 #define BOX_EVENTPUBLISHER_HPP
 
-#include <Box/Event.hpp>
 #include <Box/Private/Callback.hpp>
 #include <Box/Private/MappedCallbackStorage.hpp>
 #include <Stick/Mutex.hpp>
@@ -16,18 +15,15 @@ namespace box
         {
             using MappedStorage = typename PublisherType::MappedStorage;
             using MutexType = stick::NoMutex;
-            using Arguments = typename PublisherType::Arguments;
 
-            template<class...Args>
-            inline void publish(const MappedStorage & _callbacks, Args..._args)
+            inline void publish(const Event & _evt, const MappedStorage & _callbacks)
             {
-                auto it = _callbacks.callbackMap.find(stick::TypeInfoT<std::tuple<typename RawType<Args>::Type...>>::typeID());
+                auto it = _callbacks.callbackMap.find(_evt.eventTypeID());
                 if (it != _callbacks.callbackMap.end())
                 {
-                    printf("FOUNd\n");
                     for (auto * cb : it->value)
                     {
-                        cb->call(std::forward<Args>(_args)...);
+                        cb->call(_evt);
                     }
                 }
             }
@@ -35,43 +31,42 @@ namespace box
             mutable MutexType mutex;
         };
 
-        // template<class PublisherType>
-        // struct STICK_API PublishingPolicyLocking
-        // {
-        //     using MappedStorage = typename PublisherType::MappedStorage;
-        //     using MutexType = stick::Mutex;
+        template<class PublisherType>
+        struct STICK_API PublishingPolicyLocking
+        {
+            using MappedStorage = typename PublisherType::MappedStorage;
+            using MutexType = stick::Mutex;
 
-        //     inline void publish(const Event & _evt, const MappedStorage & _callbacks)
-        //     {
-        //         typename MappedStorage::RawPtrArray callbacks(_callbacks.storage.allocator());
-        //         {
-        //             stick::ScopedLock<MutexType> lck(mutex);
-        //             auto it = _callbacks.callbackMap.find(_evt.eventTypeID());
-        //             if (it != _callbacks.callbackMap.end())
-        //             {
-        //                 //we copy the array here so we can savely add new callbacks from within callbacks etc.
-        //                 callbacks = it->value;
-        //             }
-        //         }
+            inline void publish(const Event & _evt, const MappedStorage & _callbacks)
+            {
+                typename MappedStorage::RawPtrArray callbacks(_callbacks.storage.allocator());
+                {
+                    stick::ScopedLock<MutexType> lck(mutex);
+                    auto it = _callbacks.callbackMap.find(_evt.eventTypeID());
+                    if (it != _callbacks.callbackMap.end())
+                    {
+                        //we copy the array here so we can savely add new callbacks from within callbacks etc.
+                        callbacks = it->value;
+                    }
+                }
 
-        //         for (auto * cb : callbacks)
-        //         {
-        //             cb->call(_evt);
-        //         }
-        //     }
+                for (auto * cb : callbacks)
+                {
+                    cb->call(_evt);
+                }
+            }
 
-        //     mutable MutexType mutex;
-        // };
+            mutable MutexType mutex;
+        };
     }
 
-    template<template<class> class PublishingPolicyT, class Ret, class...Args>
+    template<template<class> class PublishingPolicyT>
     class STICK_API EventPublisherT
     {
     public:
 
         using PublishingPolicy = PublishingPolicyT<EventPublisherT>;
-        using Callback = detail::CallbackT<Ret, Args...>;
-        using Arguments = typename Callback::Arguments;
+        using Callback = detail::CallbackT<void, Event>;
         using MappedStorage = detail::MappedCallbackStorageT<typename Callback::CallbackBaseType>;
 
 
@@ -90,24 +85,16 @@ namespace box
 
         }
 
-
-        EventPublisherT(const EventPublisherT &) = default;
-        EventPublisherT(EventPublisherT &&) = default;
-
-        EventPublisherT & operator = (const EventPublisherT &) = default;
-        EventPublisherT & operator = (EventPublisherT &&) = default;
-
         /**
          * @brief Publish an event to all registered subscribers.
          *
          * @param _event The event to publish.
          */
-        template<class...Args2>
-        void publish(Args2..._args)
+        void publish(const Event & _event)
         {
-            beginPublishing();
-            m_policy.publish(m_storage, std::forward<Args2...>(_args...));
-            endPublishing();
+            beginPublishing(_event);
+            m_policy.publish(_event, m_storage);
+            endPublishing(_event);
         }
 
         // template<class T, class...Args>
@@ -119,7 +106,6 @@ namespace box
         CallbackID addEventCallback(const Callback & _cb)
         {
             stick::ScopedLock<typename PublishingPolicy::MutexType> lock(m_policy.mutex);
-            printf("DA TID %lu\n", _cb.eventTypeID);
             m_storage.addCallback({nextID(), _cb.eventTypeID}, _cb.holder);
         }
 
@@ -136,7 +122,7 @@ namespace box
         /**
          * @brief Can be overwritten if specific things need to happen right before the publisher emits its events.
          */
-        virtual void beginPublishing()
+        virtual void beginPublishing(const Event & _evt)
         {
 
         }
@@ -144,7 +130,7 @@ namespace box
         /**
          * @brief Can be overwritten if specific things need to happen right after the publisher emits its events.
          */
-        virtual void endPublishing()
+        virtual void endPublishing(const Event & _evt)
         {
 
         }
@@ -163,7 +149,7 @@ namespace box
         PublishingPolicy m_policy;
     };
 
-    using EventPublisher = EventPublisherT<detail::PublishingPolicyBasic, void, const Event &>;
+    using EventPublisher = EventPublisherT<detail::PublishingPolicyBasic>;
 }
 
 #endif //BOX_EVENTPUBLISHER_HPP
