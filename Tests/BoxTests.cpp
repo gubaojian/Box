@@ -234,6 +234,8 @@ const Suite spec[] =
         publisher.addEventCallback([&](const TestEvent & _evt) { bLamdaCalled = true; });
 
         publisher.addEventFilter([&](const TestEvent & _evt) { return _evt.someMember < 128; });
+        publisher.addEventModifier([&](const TestEvent & _evt) { auto ret = stick::makeUnique<TestEvent>(_evt); ret->someMember = 99; return ret; });
+
         EventForwarder child;
         publisher.addForwarder(child);
 
@@ -244,6 +246,8 @@ const Suite spec[] =
         //this event should be filtered
         publisher.publish(TestEvent(20));
         EXPECT(bWasCalled);
+        //check if the event modifier worked
+        EXPECT(lastTestEvent.someMember == 99);
         EXPECT(tc.counter == 1);
         EXPECT(bLamdaCalled);
         EXPECT(childCalledCount == 1);
