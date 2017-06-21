@@ -11,7 +11,6 @@ namespace box
         struct STICK_API ForwardingPolicyBasic
         {
             using MappedFilterStorage = typename PublisherType::MappedFilterStorage;
-            using MappedModifierStorage = typename PublisherType::MappedModifierStorage;
             using MutexType = stick::NoMutex;
             using ForwarderArray = typename PublisherType::ForwarderArray;
 
@@ -30,22 +29,6 @@ namespace box
                 return false;
             }
 
-            inline const Event & modify(const Event & _evt, EventPtr & _tmpStorage, const MappedModifierStorage & _modifiers)
-            {
-                const Event * ret = &_evt;
-                auto it = _modifiers.callbackMap.find(_evt.eventTypeID());
-                if (it != _modifiers.callbackMap.end())
-                {
-                    for (auto * cb : it->value)
-                    {
-                        _tmpStorage = cb->call(*ret);
-                        ret = _tmpStorage.get();
-                    }
-                }
-
-                return *ret;
-            }
-
             inline void forward(const Event & _evt, const ForwarderArray & _forwarders)
             {
                 for(auto * f : _forwarders)
@@ -54,7 +37,6 @@ namespace box
                 }
             }
 
-            mutable MutexType modifierMutex;
             mutable MutexType filterMutex;
             mutable MutexType forwarderMutex;
         };
@@ -68,15 +50,12 @@ namespace box
         using ForwardingPolicy = ForwardingPolicyT<EventForwarderT>;
         using EventPublisherType = EventPublisherT<PublishingPolicyT>;
         using Filter = detail::CallbackT<bool, Event>;
-        using Modifier = detail::CallbackT<EventPtr, Event>;
         using ForwarderArray = stick::DynamicArray<EventForwarderT *>;
         using MappedFilterStorage = detail::MappedCallbackStorageT<typename Filter::CallbackBaseType>;
-        using MappedModifierStorage = detail::MappedCallbackStorageT<typename Modifier::CallbackBaseType>;
 
         EventForwarderT(stick::Allocator & _alloc = stick::defaultAllocator()) :
             EventPublisherType(_alloc),
             m_filterStorage(_alloc),
-            m_modifierStorage(_alloc),
             m_children(_alloc)
         {
 
@@ -93,22 +72,10 @@ namespace box
             m_filterStorage.addCallback({this->nextID(), _filter.eventTypeID}, _filter.holder);
         }
 
-        CallbackID addEventModifier(const Modifier & _modifier)
-        {
-            stick::ScopedLock<typename ForwardingPolicy::MutexType> lock(m_forwardingPolicy.modifierMutex);
-            m_modifierStorage.addCallback({this->nextID(), _modifier.eventTypeID}, _modifier.holder);
-        }
-
         void removeEventFilter(const CallbackID & _id)
         {
             stick::ScopedLock<typename ForwardingPolicy::MutexType> lock(m_forwardingPolicy.filterMutex);
             m_filterStorage.removeCallback(_id);
-        }
-
-        void removeEventModifier(const CallbackID & _id)
-        {
-            stick::ScopedLock<typename ForwardingPolicy::MutexType> lock(m_forwardingPolicy.modifierMutex);
-            m_modifierStorage.removeCallback(_id);
         }
 
         bool publish(const Event & _evt)
@@ -120,12 +87,9 @@ namespace box
             bool bFilter = m_forwardingPolicy.filter(_evt, m_filterStorage);
             if (bFilter) return false;
 
-            EventPtr tempStorage;
-            const Event & evt = m_forwardingPolicy.modify(_evt, tempStorage, m_modifierStorage);
+            EventPublisherType::publish(_evt);
 
-            EventPublisherType::publish(evt);
-
-            m_forwardingPolicy.forward(evt, m_children);
+            m_forwardingPolicy.forward(_evt, m_children);
 
             return true;
         }
@@ -151,7 +115,6 @@ namespace box
     private:
 
         MappedFilterStorage m_filterStorage;
-        MappedModifierStorage m_modifierStorage;
         ForwarderArray m_children;
         ForwardingPolicy m_forwardingPolicy;
     };
