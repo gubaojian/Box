@@ -12,17 +12,19 @@ namespace box
         {
             using MappedFilterStorage = typename PublisherType::MappedFilterStorage;
             using MappedModifierStorage = typename PublisherType::MappedModifierStorage;
+            using Modifier = typename PublisherType::Modifier;
             using MutexType = stick::NoMutex;
             using ForwarderArray = typename PublisherType::ForwarderArray;
 
-            inline bool filter(const Event & _evt, const MappedFilterStorage & _filters)
+            template<class...Args>
+            inline bool filter(const MappedFilterStorage & _filters, Args..._args)
             {
-                auto it = _filters.callbackMap.find(_evt.eventTypeID());
+                auto it = _filters.callbackMap.find(stick::TypeInfoT<std::tuple<typename RawType<Args>::Type...>>::typeID());
                 if (it != _filters.callbackMap.end())
                 {
                     for (auto * cb : it->value)
                     {
-                        if (cb->call(_evt))
+                        if (cb->call(std::forward<Args>(_args)...))
                             return true;
                     }
                 }
@@ -30,27 +32,28 @@ namespace box
                 return false;
             }
 
-            inline const Event & modify(const Event & _evt, EventPtr & _tmpStorage, const MappedModifierStorage & _modifiers)
+            template<class...Args>
+            inline std::tuple<typename std::remove_reference<Args>::type...> modify(const MappedModifierStorage & _modifiers, Args..._args)
             {
-                const Event * ret = &_evt;
-                auto it = _modifiers.callbackMap.find(_evt.eventTypeID());
+                std::tuple<typename std::remove_reference<Args>::type...> ret = std::make_tuple(_args...);
+                auto it = _modifiers.callbackMap.find(stick::TypeInfoT<std::tuple<typename RawType<Args>::Type...>>::typeID());
                 if (it != _modifiers.callbackMap.end())
                 {
                     for (auto * cb : it->value)
                     {
-                        _tmpStorage = cb->call(*ret);
-                        ret = _tmpStorage.get();
+                        ret = cb->call(_args...);
                     }
                 }
 
-                return *ret;
+                return ret;
             }
 
-            inline void forward(const Event & _evt, const ForwarderArray & _forwarders)
+            template<class...Args>
+            inline void forward(const ForwarderArray & _forwarders, Args..._args)
             {
-                for(auto * f : _forwarders)
+                for (auto * f : _forwarders)
                 {
-                    f->publish(_evt);
+                    f->publish(std::forward<Args>(_args)...);
                 }
             }
 
@@ -60,15 +63,15 @@ namespace box
         };
     }
 
-    template<template<class> class ForwardingPolicyT, template<class> class PublishingPolicyT>
-    class STICK_API EventForwarderT : public EventPublisherT<PublishingPolicyT>
+    template<template<class> class ForwardingPolicyT, template<class> class PublishingPolicyT, class Ret, class...Args>
+    class STICK_API EventForwarderT : public EventPublisherT<PublishingPolicyT, Ret, Args...>
     {
     public:
 
         using ForwardingPolicy = ForwardingPolicyT<EventForwarderT>;
-        using EventPublisherType = EventPublisherT<PublishingPolicyT>;
-        using Filter = detail::CallbackT<bool, Event>;
-        using Modifier = detail::CallbackT<EventPtr, Event>;
+        using EventPublisherType = EventPublisherT<PublishingPolicyT, Ret, Args...>;
+        using Filter = detail::CallbackT<bool, Args...>;
+        using Modifier = detail::CallbackT<std::tuple<typename std::remove_reference<Args>::type...>, Args...>;
         using ForwarderArray = stick::DynamicArray<EventForwarderT *>;
         using MappedFilterStorage = detail::MappedCallbackStorageT<typename Filter::CallbackBaseType>;
         using MappedModifierStorage = detail::MappedCallbackStorageT<typename Modifier::CallbackBaseType>;
@@ -86,6 +89,12 @@ namespace box
         {
 
         }
+
+        EventForwarderT(const EventForwarderT &) = default;
+        EventForwarderT(EventForwarderT &&) = default;
+
+        EventForwarderT & operator = (const EventForwarderT &) = default;
+        EventForwarderT & operator = (EventForwarderT &&) = default;
 
         CallbackID addEventFilter(const Filter & _filter)
         {
@@ -111,21 +120,24 @@ namespace box
             m_modifierStorage.removeCallback(_id);
         }
 
-        bool publish(const Event & _evt)
+        template<class...Args2>
+        bool publish(Args2..._args)
         {
             //apply filters
-            if (filterAny(_evt))
+            if (filterAny(std::forward<Args2>(_args)...))
                 return false;
 
-            bool bFilter = m_forwardingPolicy.filter(_evt, m_filterStorage);
+            bool bFilter = m_forwardingPolicy.filter(m_filterStorage, std::forward<Args2>(_args)...);
             if (bFilter) return false;
 
-            EventPtr tempStorage;
-            const Event & evt = m_forwardingPolicy.modify(_evt, tempStorage, m_modifierStorage);
+            // EventPtr tempStorage;
+            // const Event & evt = m_forwardingPolicy.modify(_evt, tempStorage, m_modifierStorage);
 
-            EventPublisherType::publish(evt);
+            auto args = m_forwardingPolicy.modify(m_modifierStorage, std::forward<Args2>(_args)...);
 
-            m_forwardingPolicy.forward(evt, m_children);
+            EventPublisherType::publish(std::forward<Args2>(_args)...);
+
+            m_forwardingPolicy.forward(m_children, std::forward<Args2>(_args)...);
 
             return true;
         }
@@ -146,7 +158,7 @@ namespace box
 
     protected:
 
-        virtual bool filterAny(const Event & _any) { return false; };
+        virtual bool filterAny(Args..._args) { return false; };
 
     private:
 
@@ -156,7 +168,7 @@ namespace box
         ForwardingPolicy m_forwardingPolicy;
     };
 
-    using EventForwarder = EventForwarderT<detail::ForwardingPolicyBasic, detail::PublishingPolicyBasic>;
+    using EventForwarder = EventForwarderT<detail::ForwardingPolicyBasic, detail::PublishingPolicyBasic, void, const Event &>;
 }
 
 #endif //BOX_EVENTFORWARDER_HPP

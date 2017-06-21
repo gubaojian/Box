@@ -120,8 +120,11 @@ namespace box
     {
         Entity node = _hub.createEntity();
         node.set<comps::HubPointer>(&_hub);
+        node.set<comps::EventHandler>(makeUnique<EventForwarder>());
+
         if (_name.length())
             node.set<comps::Name>(_name);
+
         return node;
     }
 
@@ -502,7 +505,7 @@ namespace box
         {
             printf("layoutImpl %s %lu %lu %f %f\n", _e.get<comps::Name>().cString(), generation(_e), _generation, _x, _y);
 
-            if(!isDirty(_e))
+            if (!isDirty(_e))
                 return false;
 
             //Direction dir = resolveDirection(_e, _parentDirection);

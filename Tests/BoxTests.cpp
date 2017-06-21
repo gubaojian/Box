@@ -8,6 +8,39 @@
 using namespace stick;
 using namespace box;
 
+
+#include <tuple>
+
+template<class T>
+struct NoCast
+{
+    using BaseType = T;
+
+    static T cast(T _val)
+    {
+        return _val;
+    }
+};
+
+template<class F, class T>
+struct Cast
+{
+    using BaseType = T;
+    
+    static T cast(F _val)
+    {
+        return static_cast<T>(_val);
+    }
+};
+
+template<class...Args>
+struct VTest
+{
+    std::tuple<typename Args::BaseType...> membas;
+};
+
+
+
 struct TestEvent : public EventT<TestEvent> 
 {
     TestEvent(Int32 _num = 128) : 
@@ -191,7 +224,6 @@ const Suite spec[] =
         TestClass tc;
         Callback cb2(&tc, &TestClass::memberCallback);
 
-
         bool bLamdaCalled = false;
         Callback cb3([&](const TestEvent & _evt) { bLamdaCalled = true; });
 
@@ -216,10 +248,30 @@ const Suite spec[] =
         bool bLamdaCalled = false;
         publisher.addEventCallback([&](const TestEvent & _evt) { bLamdaCalled = true; });
 
+        TestEvent e;
         publisher.publish(TestEvent());
         EXPECT(bWasCalled);
         EXPECT(tc.counter == 1);
         EXPECT(bLamdaCalled);
+
+        // auto a = TypeInfoT<TestEvent>::typeID();
+        // auto b = TypeInfoT<const TestEvent &>::typeID();
+        // auto c = TypeInfoT<typename box::detail::IsConvertible<const TestEvent &, const Event&>::Type>::typeID();
+        // auto d = TypeInfoT<typename std::tuple_element<0, EventPublisher::Arguments>::type>::typeID();
+        // auto d2 = TypeInfoT<const Event&>::typeID();
+
+        // if(std::is_convertible<TestEvent, typename std::tuple_element<0, EventPublisher::Arguments>::type>::value)
+        //     printf("WE CAN CONVERT DAT!\n");
+
+        // using TA = std::tuple<typename box::detail::IsConvertible<TestEvent, typename std::tuple_element<0, EventPublisher::Arguments>::type>::Type>;
+        // using TB = std::tuple<typename box::detail::IsConvertible<const TestEvent &, typename std::tuple_element<0, EventPublisher::Arguments>::type>::Type>;
+
+        // auto e2 = TypeInfoT<TA>::typeID();
+        // auto f = TypeInfoT<TB>::typeID();
+        // printf("DA IDS %lu %lu %lu %lu\n", a, b, c, d);
+        // printf("MO IDS %lu %lu %lu\n", d2, e2, f);
+
+        // printf("DA TYPE %s\n", typeid(typename box::detail::IsConvertible<TestClass, const TestClass&>::Type).name());
     },
     SUITE("EventForwarder Tests")
     {
@@ -234,7 +286,7 @@ const Suite spec[] =
         publisher.addEventCallback([&](const TestEvent & _evt) { bLamdaCalled = true; });
 
         publisher.addEventFilter([&](const TestEvent & _evt) { return _evt.someMember < 128; });
-        publisher.addEventModifier([&](const TestEvent & _evt) { auto ret = stick::makeUnique<TestEvent>(_evt); ret->someMember = 99; return ret; });
+        // publisher.addEventModifier([&](const TestEvent & _evt) { auto ret = stick::makeUnique<TestEvent>(_evt); ret->someMember = 99; return ret; });
 
         EventForwarder child;
         publisher.addForwarder(child);
@@ -247,10 +299,12 @@ const Suite spec[] =
         publisher.publish(TestEvent(20));
         EXPECT(bWasCalled);
         //check if the event modifier worked
-        EXPECT(lastTestEvent.someMember == 99);
+       // EXPECT(lastTestEvent.someMember == 99);
         EXPECT(tc.counter == 1);
         EXPECT(bLamdaCalled);
         EXPECT(childCalledCount == 1);
+
+        // VTest<NoCast<Int32>, NoCast<String>, Cast<UInt64, Int32>> bla;
     }
 };
 

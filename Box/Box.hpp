@@ -1,12 +1,13 @@
 #ifndef BOX_BOX_HPP
 #define BOX_BOX_HPP
 
-#include <Box/BasicTypes.hpp>
-#include <Box/Constants.hpp>
 #include <Brick/Entity.hpp>
 #include <Brick/Component.hpp>
 #include <Stick/DynamicArray.hpp>
 #include <Stick/Error.hpp>
+#include <Box/BasicTypes.hpp>
+#include <Box/Constants.hpp>
+#include <Box/EventForwarder.hpp>
 
 #include <cmath>
 
@@ -47,6 +48,11 @@ namespace box
         Unit unit;
     };
 
+    class STICK_API EventHandler : public EventForwarder
+    {
+        brick::Entity self;
+    };
+
     namespace comps
     {
         using Parent = brick::Component<ComponentName("Parent"), brick::Entity>;
@@ -85,6 +91,9 @@ namespace box
         using MarginTop = brick::Component<ComponentName("MarginTop"), Value>;
         using MarginRight = brick::Component<ComponentName("MarginRight"), Value>;
         using MarginBottom = brick::Component<ComponentName("MarginBottom"), Value>;
+
+        //event related stuff
+        using EventHandler = brick::Component<ComponentName("EventHandler"), stick::UniquePtr<EventForwarder>>;
     }
 
     STICK_API bool isUndefined(Float _value);
