@@ -296,6 +296,33 @@ const Suite spec[] =
         EXPECT(bLamdaCalled);
         EXPECT(childCalledCount == 1);
         EXPECT(testEvent2Called == 1);
+    },
+    SUITE("Advanced EventForwarder Tests")
+    {
+        //check if the passed along arguments work as expected
+        using EventForwarder = EventForwarderT<Event, box::detail::ForwardingPolicyBasic, box::detail::PublishingPolicyBasic, stick::Int32 *>;
+        bWasCalled = false;
+        Int32 a = 100;
+        EventForwarder publisher(stick::defaultAllocator(), &a);
+
+        Int32 b = 27;
+        EventForwarder publisher2(stick::defaultAllocator(), &b);
+        publisher.addForwarder(publisher2);
+
+        publisher.addEventCallback([](const TestEvent & _evt, Int32 * _arg)
+        {
+            *_arg = 54;
+        });
+
+        publisher2.addEventCallback([](const TestEvent & _evt, Int32 * _arg)
+        {
+            *_arg = 13;
+        });
+
+        publisher.publish(TestEvent());
+
+        EXPECT(a == 54);
+        EXPECT(b == 13);
     }
 };
 

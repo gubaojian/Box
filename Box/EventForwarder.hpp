@@ -52,7 +52,7 @@ namespace box
 
             inline void forward(const EventType & _evt, const ForwarderArray & _forwarders)
             {
-                for(auto * f : _forwarders)
+                for (auto * f : _forwarders)
                 {
                     f->publish(_evt);
                 }
@@ -65,14 +65,14 @@ namespace box
     }
 
     template<class EventT, template<class> class ForwardingPolicyT, template<class> class PublishingPolicyT, class...PassAlongArgs>
-    class STICK_API EventForwarderT : public EventPublisherT<EventT, PublishingPolicyT>
+    class STICK_API EventForwarderT : public EventPublisherT<EventT, PublishingPolicyT, PassAlongArgs...>
     {
     public:
 
         using EventType = EventT;
         using EventUniquePtr = stick::UniquePtr<EventType>;
         using ForwardingPolicy = ForwardingPolicyT<EventForwarderT>;
-        using EventPublisherType = EventPublisherT<EventT, PublishingPolicyT>;
+        using EventPublisherType = EventPublisherT<EventT, PublishingPolicyT, PassAlongArgs...>;
         using Filter = detail::CallbackT<bool, EventType, PassAlongArgs...>;
         using Modifier = detail::CallbackT<EventUniquePtr, EventType, PassAlongArgs...>;
         using ForwarderArray = stick::DynamicArray<EventForwarderT *>;
