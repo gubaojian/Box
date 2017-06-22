@@ -48,15 +48,15 @@ namespace box
         Unit unit;
     };
 
-    struct STICK_API EventHandler : public EventForwarder
-    {
-        inline EventHandler(brick::Entity _e) :
-        node(_e)
-        {
-        }
+    // struct STICK_API EventHandler : public EventForwarder
+    // {
+    //     inline EventHandler(brick::Entity _e) :
+    //     node(_e)
+    //     {
+    //     }
 
-        brick::Entity node;
-    };
+    //     brick::Entity node;
+    // };
 
     namespace comps
     {
@@ -98,7 +98,7 @@ namespace box
         using MarginBottom = brick::Component<ComponentName("MarginBottom"), Value>;
 
         //event handling components
-        using EventHandler = brick::Component<ComponentName("EventHandler"), stick::UniquePtr<EventHandler>>;
+        // using EventHandler = brick::Component<ComponentName("EventHandler"), stick::UniquePtr<EventHandler>>;
     }
 
     STICK_API bool isUndefined(Float _value);
@@ -126,7 +126,7 @@ namespace box
     STICK_API void setMaxWidth(brick::Entity _e, Float _width, Unit _unit = Unit::Pixels);
     STICK_API void setMaxHeight(brick::Entity _e, Float _height, Unit _unit = Unit::Pixels);
 
-    STICK_API void addEventCallback(brick::Entity _e, const EventForwarder::Callback & _cb);
+    // STICK_API void addEventCallback(brick::Entity _e, const EventForwarder::Callback & _cb);
 
     // STICK_API void appendToDebugString(
     //                             const brick::Entity & _e,

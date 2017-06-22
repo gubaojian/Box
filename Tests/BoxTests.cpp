@@ -48,34 +48,34 @@ struct TestClass
     Int32 counter = 0;
 };
 
-struct TestEventHandler : public EventForwarder
-{
-    TestEventHandler(brick::Entity _node) :
-    node(_node)
-    {
-    }
+// struct TestEventHandler : public EventForwarder
+// {
+//     TestEventHandler(brick::Entity _node) :
+//     node(_node)
+//     {
+//     }
 
-    template<class F>
-    void addEventCallback(F _functor)
-    {
-        using EventType = typename box::detail::FunctionTraits<F>::template Argument<1>::Type;
-        EventForwarder::addEventCallback([this, _functor](EventType _e)
-        {
-            _functor(node, _e);
-        });
-    }
+//     template<class F>
+//     void addEventCallback(F _functor)
+//     {
+//         using EventType = typename box::detail::FunctionTraits<F>::template Argument<1>::Type;
+//         EventForwarder::addEventCallback([this, _functor](EventType _e)
+//         {
+//             _functor(node, _e);
+//         });
+//     }
 
-    // template<class T, class E>
-    // void addEventCallback(T * _obj, void (T::*MemberFunction)(const E &))
-    // {
-    //     EventForwarder::addEventCallback([this, _functor](const E & _e)
-    //     {
-    //         _obj
-    //     });
-    // }
+//     // template<class T, class E>
+//     // void addEventCallback(T * _obj, void (T::*MemberFunction)(const E &))
+//     // {
+//     //     EventForwarder::addEventCallback([this, _functor](const E & _e)
+//     //     {
+//     //         _obj
+//     //     });
+//     // }
 
-    brick::Entity node;
-};
+//     brick::Entity node;
+// };
 
 const Suite spec[] =
 {
@@ -246,6 +246,7 @@ const Suite spec[] =
     },
     SUITE("EventPublisher Tests")
     {
+        using EventPublisher = EventPublisherT<Event, box::detail::PublishingPolicyBasic>;
         bWasCalled = false;
         EventPublisher publisher;
 
@@ -263,6 +264,7 @@ const Suite spec[] =
     },
     SUITE("EventForwarder Tests")
     {
+        using EventForwarder = EventForwarderT<Event, box::detail::ForwardingPolicyBasic, box::detail::PublishingPolicyBasic>;
         bWasCalled = false;
         EventForwarder publisher;
 
@@ -294,15 +296,6 @@ const Suite spec[] =
         EXPECT(bLamdaCalled);
         EXPECT(childCalledCount == 1);
         EXPECT(testEvent2Called == 1);
-
-
-        brick::Entity e;
-        TestEventHandler bla(e);
-
-        bla.addEventCallback([](brick::Entity _self, const TestEvent & _e)
-        {
-
-        });
     }
 };
 

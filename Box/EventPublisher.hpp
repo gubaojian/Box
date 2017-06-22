@@ -17,9 +17,10 @@ namespace box
         {
             using MappedStorage = typename PublisherType::MappedStorage;
             using MutexType = stick::NoMutex;
+            using EventType = typename PublisherType::EventType;
 
             template<class...PassAlongArgs>
-            inline void publish(const MappedStorage & _callbacks, const Event & _evt, PassAlongArgs..._args)
+            inline void publish(const MappedStorage & _callbacks, const EventType & _evt, PassAlongArgs..._args)
             {
                 auto it = _callbacks.callbackMap.find(_evt.eventTypeID());
                 if (it != _callbacks.callbackMap.end())
@@ -39,9 +40,10 @@ namespace box
         {
             using MappedStorage = typename PublisherType::MappedStorage;
             using MutexType = stick::Mutex;
+            using EventType = typename PublisherType::EventType;
 
             template<class...PassAlongArgs>
-            inline void publish(const MappedStorage & _callbacks, const Event & _evt, PassAlongArgs..._args)
+            inline void publish(const MappedStorage & _callbacks, const EventType & _evt, PassAlongArgs..._args)
             {
                 typename MappedStorage::RawPtrArray callbacks(_callbacks.storage.allocator());
                 {
@@ -64,13 +66,14 @@ namespace box
         };
     }
 
-    template<template<class> class PublishingPolicyT, class...PassAlongArgs>
+    template<class EventT, template<class> class PublishingPolicyT, class...PassAlongArgs>
     class STICK_API EventPublisherT
     {
     public:
 
+        using EventType = EventT;
         using PublishingPolicy = PublishingPolicyT<EventPublisherT>;
-        using Callback = detail::CallbackT<void, Event, PassAlongArgs...>;
+        using Callback = detail::CallbackT<void, EventT, PassAlongArgs...>;
         using MappedStorage = detail::MappedCallbackStorageT<typename Callback::CallbackBaseType>;
         using PassAlongArgsStorage = std::tuple<PassAlongArgs...>;
 
@@ -96,7 +99,7 @@ namespace box
          *
          * @param _event The event to publish.
          */
-        void publish(const Event & _event)
+        void publish(const EventType & _event)
         {
             beginPublishing(_event);
             publishImpl(_event, detail::MakeIndexSequence<sizeof...(PassAlongArgs)>());
@@ -128,7 +131,7 @@ namespace box
         /**
          * @brief Can be overwritten if specific things need to happen right before the publisher emits its events.
          */
-        virtual void beginPublishing(const Event & _evt)
+        virtual void beginPublishing(const EventType & _evt)
         {
 
         }
@@ -136,7 +139,7 @@ namespace box
         /**
          * @brief Can be overwritten if specific things need to happen right after the publisher emits its events.
          */
-        virtual void endPublishing(const Event & _evt)
+        virtual void endPublishing(const EventType & _evt)
         {
 
         }
@@ -151,7 +154,7 @@ namespace box
         }
 
         template<stick::Size...S>
-        inline void publishImpl(const Event & _e, detail::IndexSequence<S...>)
+        inline void publishImpl(const EventType & _e, detail::IndexSequence<S...>)
         {
             m_policy.publish(m_storage, _e, std::get<S>(m_passedArgsStorage)...);
         }
@@ -161,8 +164,6 @@ namespace box
         PassAlongArgsStorage m_passedArgsStorage;
         PublishingPolicy m_policy;
     };
-
-    using EventPublisher = EventPublisherT<detail::PublishingPolicyBasic>;
 }
 
 #endif //BOX_EVENTPUBLISHER_HPP
