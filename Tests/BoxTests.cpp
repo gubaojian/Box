@@ -8,15 +8,26 @@
 using namespace stick;
 using namespace box;
 
-struct TestEvent : public EventT<TestEvent> 
+struct TestEvent : public EventT<TestEvent>
 {
-    TestEvent(Int32 _num = 128) : 
-    someMember(_num)
+    TestEvent(Int32 _num = 128) :
+        someMember(_num)
     {
 
     }
 
     Int32 someMember = 128;
+};
+
+struct TestEvent2 : public EventT<TestEvent2>
+{
+    TestEvent2(Int32 _num = 64) :
+        someMember(_num)
+    {
+
+    }
+
+    Int32 someMember = 64;
 };
 
 static TestEvent lastTestEvent;
@@ -35,6 +46,35 @@ struct TestClass
     }
 
     Int32 counter = 0;
+};
+
+struct TestEventHandler : public EventForwarder
+{
+    TestEventHandler(brick::Entity _node) :
+    node(_node)
+    {
+    }
+
+    template<class F>
+    void addEventCallback(F _functor)
+    {
+        using EventType = typename box::detail::FunctionTraits<F>::template Argument<1>::Type;
+        EventForwarder::addEventCallback([this, _functor](EventType _e)
+        {
+            _functor(node, _e);
+        });
+    }
+
+    // template<class T, class E>
+    // void addEventCallback(T * _obj, void (T::*MemberFunction)(const E &))
+    // {
+    //     EventForwarder::addEventCallback([this, _functor](const E & _e)
+    //     {
+    //         _obj
+    //     });
+    // }
+
+    brick::Entity node;
 };
 
 const Suite spec[] =
@@ -234,13 +274,15 @@ const Suite spec[] =
         publisher.addEventCallback([&](const TestEvent & _evt) { bLamdaCalled = true; });
 
         publisher.addEventFilter([&](const TestEvent & _evt) { return _evt.someMember < 128; });
-        publisher.addEventModifier([&](const TestEvent & _evt) { auto ret = stick::makeUnique<TestEvent>(_evt); ret->someMember = 99; return ret; });
+        publisher.addEventModifier([&](const TestEvent & _evt)  { auto ret = stick::makeUnique<TestEvent>(_evt); ret->someMember = 99; return ret; });
 
         EventForwarder child;
         publisher.addForwarder(child);
 
         int childCalledCount = 0;
-        child.addEventCallback([&](const TestEvent & _evt) { childCalledCount++; });
+        int testEvent2Called = 0;
+        child.addEventCallback([&](const TestEvent2 & _evt) { testEvent2Called++; });
+        child.addEventCallback([&](const TestEvent & _evt) { childCalledCount++; child.publish(TestEvent2()); });
 
         publisher.publish(TestEvent());
         //this event should be filtered
@@ -251,6 +293,16 @@ const Suite spec[] =
         EXPECT(tc.counter == 1);
         EXPECT(bLamdaCalled);
         EXPECT(childCalledCount == 1);
+        EXPECT(testEvent2Called == 1);
+
+
+        brick::Entity e;
+        TestEventHandler bla(e);
+
+        bla.addEventCallback([](brick::Entity _self, const TestEvent & _e)
+        {
+
+        });
     }
 };
 

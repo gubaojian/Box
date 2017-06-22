@@ -3,6 +3,8 @@
 
 #include <Box/Private/Callback.hpp>
 #include <Box/Private/MappedCallbackStorage.hpp>
+#include <Box/Private/IndexSequence.hpp>
+#include <Box/Event.hpp>
 #include <Stick/Mutex.hpp>
 #include <Stick/ScopedLock.hpp>
 
@@ -16,14 +18,15 @@ namespace box
             using MappedStorage = typename PublisherType::MappedStorage;
             using MutexType = stick::NoMutex;
 
-            inline void publish(const Event & _evt, const MappedStorage & _callbacks)
+            template<class...PassAlongArgs>
+            inline void publish(const MappedStorage & _callbacks, const Event & _evt, PassAlongArgs..._args)
             {
                 auto it = _callbacks.callbackMap.find(_evt.eventTypeID());
                 if (it != _callbacks.callbackMap.end())
                 {
                     for (auto * cb : it->value)
                     {
-                        cb->call(_evt);
+                        cb->call(_evt, std::forward<PassAlongArgs>(_args)...);
                     }
                 }
             }
@@ -37,7 +40,8 @@ namespace box
             using MappedStorage = typename PublisherType::MappedStorage;
             using MutexType = stick::Mutex;
 
-            inline void publish(const Event & _evt, const MappedStorage & _callbacks)
+            template<class...PassAlongArgs>
+            inline void publish(const MappedStorage & _callbacks, const Event & _evt, PassAlongArgs..._args)
             {
                 typename MappedStorage::RawPtrArray callbacks(_callbacks.storage.allocator());
                 {
@@ -52,7 +56,7 @@ namespace box
 
                 for (auto * cb : callbacks)
                 {
-                    cb->call(_evt);
+                    cb->call(_evt, std::forward<PassAlongArgs>(_args)...);
                 }
             }
 
@@ -60,19 +64,21 @@ namespace box
         };
     }
 
-    template<template<class> class PublishingPolicyT>
+    template<template<class> class PublishingPolicyT, class...PassAlongArgs>
     class STICK_API EventPublisherT
     {
     public:
 
         using PublishingPolicy = PublishingPolicyT<EventPublisherT>;
-        using Callback = detail::CallbackT<void, Event>;
+        using Callback = detail::CallbackT<void, Event, PassAlongArgs...>;
         using MappedStorage = detail::MappedCallbackStorageT<typename Callback::CallbackBaseType>;
+        using PassAlongArgsStorage = std::tuple<PassAlongArgs...>;
 
 
-        EventPublisherT(stick::Allocator & _alloc = stick::defaultAllocator()) :
+        EventPublisherT(stick::Allocator & _alloc = stick::defaultAllocator(), PassAlongArgs..._args) :
             m_alloc(&_alloc),
-            m_storage(_alloc)
+            m_storage(_alloc),
+            m_passedArgsStorage(std::forward<PassAlongArgs>(_args)...)
         {
 
         }
@@ -93,7 +99,7 @@ namespace box
         void publish(const Event & _event)
         {
             beginPublishing(_event);
-            m_policy.publish(_event, m_storage);
+            publishImpl(_event, detail::MakeIndexSequence<sizeof...(PassAlongArgs)>());
             endPublishing(_event);
         }
 
@@ -144,8 +150,15 @@ namespace box
             return s_id++;
         }
 
+        template<stick::Size...S>
+        inline void publishImpl(const Event & _e, detail::IndexSequence<S...>)
+        {
+            m_policy.publish(m_storage, _e, std::get<S>(m_passedArgsStorage)...);
+        }
+
         stick::Allocator * m_alloc;
         MappedStorage m_storage;
+        PassAlongArgsStorage m_passedArgsStorage;
         PublishingPolicy m_policy;
     };
 

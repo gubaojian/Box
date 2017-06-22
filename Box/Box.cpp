@@ -119,7 +119,7 @@ namespace box
     Entity createNode(const String & _name, Hub & _hub)
     {
         Entity node = _hub.createEntity();
-        node.set<comps::HubPointer>(&_hub);
+        node.set<comps::EventHandler>(makeUnique<EventHandler>(node));
         if (_name.length())
             node.set<comps::Name>(_name);
         return node;

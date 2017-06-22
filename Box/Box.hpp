@@ -1,12 +1,13 @@
 #ifndef BOX_BOX_HPP
 #define BOX_BOX_HPP
 
-#include <Box/BasicTypes.hpp>
-#include <Box/Constants.hpp>
 #include <Brick/Entity.hpp>
 #include <Brick/Component.hpp>
 #include <Stick/DynamicArray.hpp>
 #include <Stick/Error.hpp>
+#include <Box/BasicTypes.hpp>
+#include <Box/Constants.hpp>
+#include <Box/EventForwarder.hpp>
 
 #include <cmath>
 
@@ -47,6 +48,16 @@ namespace box
         Unit unit;
     };
 
+    struct STICK_API EventHandler : public EventForwarder
+    {
+        inline EventHandler(brick::Entity _e) :
+        node(_e)
+        {
+        }
+
+        brick::Entity node;
+    };
+
     namespace comps
     {
         using Parent = brick::Component<ComponentName("Parent"), brick::Entity>;
@@ -85,6 +96,9 @@ namespace box
         using MarginTop = brick::Component<ComponentName("MarginTop"), Value>;
         using MarginRight = brick::Component<ComponentName("MarginRight"), Value>;
         using MarginBottom = brick::Component<ComponentName("MarginBottom"), Value>;
+
+        //event handling components
+        using EventHandler = brick::Component<ComponentName("EventHandler"), stick::UniquePtr<EventHandler>>;
     }
 
     STICK_API bool isUndefined(Float _value);
@@ -111,6 +125,8 @@ namespace box
     STICK_API void setMaxSize(brick::Entity _e, Value _width, Value _height);
     STICK_API void setMaxWidth(brick::Entity _e, Float _width, Unit _unit = Unit::Pixels);
     STICK_API void setMaxHeight(brick::Entity _e, Float _height, Unit _unit = Unit::Pixels);
+
+    STICK_API void addEventCallback(brick::Entity _e, const EventForwarder::Callback & _cb);
 
     // STICK_API void appendToDebugString(
     //                             const brick::Entity & _e,
