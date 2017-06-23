@@ -79,7 +79,15 @@ namespace box
         using MappedFilterStorage = detail::MappedCallbackStorageT<typename Filter::CallbackBaseType>;
         using MappedModifierStorage = detail::MappedCallbackStorageT<typename Modifier::CallbackBaseType>;
 
-        EventForwarderT(stick::Allocator & _alloc = stick::defaultAllocator(), PassAlongArgs..._args) :
+        EventForwarderT() :
+            m_filterStorage(stick::defaultAllocator()),
+            m_modifierStorage(stick::defaultAllocator()),
+            m_children(stick::defaultAllocator())
+        {
+
+        }
+
+        EventForwarderT(stick::Allocator & _alloc, PassAlongArgs..._args) :
             EventPublisherType(_alloc, std::forward<PassAlongArgs>(_args)...),
             m_filterStorage(_alloc),
             m_modifierStorage(_alloc),

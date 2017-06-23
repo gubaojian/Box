@@ -1,4 +1,5 @@
 #include <Box/Box.hpp>
+#include <Box/MouseEvents.hpp>
 #include <GLFW/glfw3.h>
 #include <GLAnnotate/GLAnnotate.hpp>
 #include <Crunch/Colors.hpp>
@@ -13,6 +14,8 @@ namespace mycomps
 {
     using BackgroundColor = brick::Component<ComponentName("BackgroundColor"), crunch::ColorRGBA>;
 }
+
+brick::Entity root;
 
 void recursivelyDrawDocument(Entity _e, gla::GLAnnotate & _renderer)
 {
@@ -33,6 +36,22 @@ void recursivelyDrawDocument(Entity _e, gla::GLAnnotate & _renderer)
     }
 }
 
+void mouseButtonCallback(GLFWwindow * window, int button, int action, int mods)
+{
+    double xpos, ypos;
+    glfwGetCursorPos(window, &xpos, &ypos);
+
+    if (action == GLFW_PRESS)
+    {
+        root.get<comps::EventHandler>()->publish(MouseDownEvent(MouseState(xpos, ypos, (UInt32)MouseButton::Left), MouseButton::Left));
+    }
+    else if (action == GLFW_RELEASE)
+    {
+        root.get<comps::EventHandler>()->publish(MouseUpEvent(MouseState(xpos, ypos, (UInt32)MouseButton::Left), MouseButton::Left));
+    }
+
+}
+
 int main(int _argc, const char * _args[])
 {
     // initialize glfw
@@ -50,6 +69,7 @@ int main(int _argc, const char * _args[])
     GLFWwindow * window = glfwCreateWindow(800, 600, "Hello Paper Example", NULL, NULL);
     if (window)
     {
+        glfwSetMouseButtonCallback(window, mouseButtonCallback);
         glfwMakeContextCurrent(window);
 
         gla::GLAnnotate gla;
@@ -61,7 +81,7 @@ int main(int _argc, const char * _args[])
             return EXIT_FAILURE;
         }
 
-        auto root = createNode("DAAA Root");
+        root = createNode("DAAA Root");
         setSize(root, 800.0f, 600.0f);
         root.set <mycomps::BackgroundColor>(0.5f, 0.3f, 0.1f, 1.0f);
         auto a = createNode("DAAA A");
@@ -105,14 +125,26 @@ int main(int _argc, const char * _args[])
         i.set <mycomps::BackgroundColor>(0.1f, 0.1f, 1.0f, 1.0f);
         addChild(c, i);
 
+        addEventCallback(i, [](const MouseDownEvent & _e, brick::Entity _self)
+        {
+            printf("CLICKED BABY\n");
+            _self.set<mycomps::BackgroundColor>(0.9f, 0.1f, 0.0f, 1.0f);
+        });
+
+        addEventCallback(i, [](const MouseUpEvent & _e, brick::Entity _self)
+        {
+            printf("RELEASE BABY\n");
+            _self.set<mycomps::BackgroundColor>(0.1f, 0.1f, 1.0f, 1.0f);
+        });
+
         // the main loop
         float angle = 0;
         Randomizer rnd;
         while (!glfwWindowShouldClose(window))
         {
-            setWidth(root, rnd.randomf(400, 800));
+            // setWidth(root, rnd.randomf(400, 800));
             layout(root, 800, 600);
-            printf("POST LAYOUT\n");
+            // printf("POST LAYOUT\n");
 
             // clear the background to black
             glClearColor(0, 0, 0, 1);

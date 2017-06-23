@@ -77,13 +77,24 @@ namespace box
         using MappedStorage = detail::MappedCallbackStorageT<typename Callback::CallbackBaseType>;
         using PassAlongArgsStorage = std::tuple<PassAlongArgs...>;
 
+        EventPublisherT() :
+            m_alloc(&stick::defaultAllocator()),
+            m_storage(stick::defaultAllocator())
+        {
 
-        EventPublisherT(stick::Allocator & _alloc = stick::defaultAllocator(), PassAlongArgs..._args) :
+        }
+
+        EventPublisherT(stick::Allocator & _alloc, PassAlongArgs..._args) :
             m_alloc(&_alloc),
             m_storage(_alloc),
             m_passedArgsStorage(std::forward<PassAlongArgs>(_args)...)
         {
 
+        }
+
+        void setPassAlongArguments(PassAlongArgs..._args)
+        {
+            m_passedArgsStorage = PassAlongArgsStorage(std::forward<PassAlongArgs>(_args)...);
         }
 
         /**

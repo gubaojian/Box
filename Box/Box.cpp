@@ -1,4 +1,6 @@
 #include <Box/Box.hpp>
+#include <Box/MouseEvents.hpp>
+
 #include <Stick/ErrorCodes.hpp>
 
 namespace box
@@ -90,6 +92,8 @@ namespace box
                     auto it = stick::find(children.begin(), children.end(), _e);
                     STICK_ASSERT(it != children.end());
                     children.remove(it);
+                    (*mp).get<comps::EventHandler>()->removeForwarder(*_e.get<comps::EventHandler>());
+
                     _e.set<comps::Parent>(Entity());
 
                     //mark the parent dirty if its size is not defined
@@ -119,7 +123,25 @@ namespace box
     Entity createNode(const String & _name, Hub & _hub)
     {
         Entity node = _hub.createEntity();
-        // node.set<comps::EventHandler>(makeUnique<EventHandler>(node));
+        auto eh = makeUnique<EventHandler>();
+        eh->setPassAlongArguments(node);
+
+        eh->addEventFilter([](const MouseDownEvent & _e, Entity _self)
+        {
+            STICK_ASSERT(_self.hasComponent<comps::ComputedLayout>());
+            auto & box = _self.get<comps::ComputedLayout>().box;
+            return !_self.get<comps::ComputedLayout>().box.contains(_e.x(), _e.y());
+        });
+
+        eh->addEventFilter([](const MouseUpEvent & _e, Entity _self)
+        {
+            STICK_ASSERT(_self.hasComponent<comps::ComputedLayout>());
+            auto & box = _self.get<comps::ComputedLayout>().box;
+            return !_self.get<comps::ComputedLayout>().box.contains(_e.x(), _e.y());
+        });
+
+        node.set<comps::EventHandler>(std::move(eh));
+
         if (_name.length())
             node.set<comps::Name>(_name);
         return node;
@@ -135,7 +157,9 @@ namespace box
 
         //possibly remove from previous parent
         detail::removeFromParent(_child);
+
         _e.get<comps::Children>().append(_child);
+        _e.get<comps::EventHandler>()->addForwarder(*_child.get<comps::EventHandler>());
         _child.set<comps::Parent>(_e);
     }
 
@@ -378,7 +402,7 @@ namespace box
                             Float _parentWidth, Float _parentHeight,
                             Size _generation, DynamicArray<Line> & _outLines, Error & _outError)
         {
-            printf("GENERATING LINES FOR %s\n", _e.get<comps::Name>().cString());
+            // printf("GENERATING LINES FOR %s\n", _e.get<comps::Name>().cString());
             auto mchildren = _e.maybe<comps::Children>();
             Float currentX = _x;
             Float currentY = _y;
@@ -387,15 +411,15 @@ namespace box
             {
                 auto & children = *mchildren;
                 Line currentLine;
-                printf("CHILD COUNT %lu\n", children.count());
+                // printf("CHILD COUNT %lu\n", children.count());
                 for (Entity & child : children)
                 {
-                    printf("AW %f AH %f\n", aw, _availableHeight);
+                    // printf("AW %f AH %f\n", aw, _availableHeight);
                     layoutImpl(child, currentX, _y, _availableWidth, _availableHeight, _parentWidth, _parentHeight, _generation, _outError);
                     //@TODO: Handle error?
                     STICK_ASSERT(child.hasComponent<comps::ComputedLayout>());
                     Float s = child.get<comps::ComputedLayout>().box.width();
-                    printf("DATA: %f %f\n", _availableWidth, s);
+                    // printf("DATA: %f %f\n", _availableWidth, s);
                     if (aw >= s)
                     {
                         currentLine.items.append(child);
@@ -404,7 +428,7 @@ namespace box
                     }
                     else
                     {
-                        printf("MAKING NEW LINE YOOOO!!!\n");
+                        // printf("MAKING NEW LINE YOOOO!!!\n");
                         _outLines.append(currentLine);
                         currentLine = Line();
                         child.get<comps::ComputedLayout>().box.setPosition(_x, _y);
@@ -433,7 +457,7 @@ namespace box
                     {
                         for (Entity & c : line.items)
                         {
-                            printf("RELAYOUT STRETCH\n");
+                            // printf("RELAYOUT STRETCH\n");
                             Rect & b = c.get<comps::ComputedLayout>().box;
                             b.setSize(b.width(), lineHeight);
 
@@ -500,9 +524,9 @@ namespace box
                         Float _parentWidth, Float _parentHeight, Size _generation,
                         Error & _outError)
         {
-            printf("layoutImpl %s %lu %lu %f %f\n", _e.get<comps::Name>().cString(), generation(_e), _generation, _x, _y);
+            // printf("layoutImpl %s %lu %lu %f %f\n", _e.get<comps::Name>().cString(), generation(_e), _generation, _x, _y);
 
-            if(!isDirty(_e))
+            if (!isDirty(_e))
                 return false;
 
             //Direction dir = resolveDirection(_e, _parentDirection);
@@ -515,7 +539,7 @@ namespace box
                 //and all its children
                 if (_x != (*mcl).box.min().x || _y != (*mcl).box.min().y)
                 {
-                    printf("MOVING BRO\n");
+                    // printf("MOVING BRO\n");
                     recursivelyMoveBy(_e, _x - (*mcl).box.min().x, _y - (*mcl).box.min().y);
                 }
                 return false;
@@ -534,7 +558,7 @@ namespace box
             Float availableHeight = _availableHeight;
             if (mw)
             {
-                printf("GOT A WIDTH\n");
+                // printf("GOT A WIDTH\n");
                 if ((*mw).unit == Unit::Pixels)
                 {
                     availableWidth = (*mw).value;
@@ -545,7 +569,7 @@ namespace box
                     if (!isUndefined(_parentWidth))
                     {
                         availableWidth = (*mw).value * _parentWidth * 0.01;
-                        printf("SETTING PERCENTAGE WIDTH\n");
+                        // printf("SETTING PERCENTAGE WIDTH\n");
                         bWidthFixed = true;
                     }
                 }
@@ -553,7 +577,7 @@ namespace box
 
             if (mh)
             {
-                printf("GOT A HEIGHT\n");
+                // printf("GOT A HEIGHT\n");
                 if ((*mh).unit == Unit::Pixels)
                 {
                     availableHeight = (*mh).value;
@@ -574,7 +598,7 @@ namespace box
 
             DynamicArray<Line> lines;
             //if this is a relative width item, we save the widht of the resulting line of its children
-            printf("GENERATING LINES %f %f %f %f\n", availableWidth, availableHeight, w, h);
+            // printf("GENERATING LINES %f %f %f %f\n", availableWidth, availableHeight, w, h);
             Vec2f pos = generateLines(_e, _x, _y, availableWidth, availableHeight, w, h, _generation, lines, _outError);
 
             //@TODO: Handle error?
@@ -582,40 +606,40 @@ namespace box
             if (!bWidthFixed)
             {
                 w = pos.x - _x;
-                printf("NO FIXED W %f\n", w);
+                // printf("NO FIXED W %f\n", w);
             }
 
             if (mminw)
             {
-                printf("GOT MINW\n");
+                // printf("GOT MINW\n");
                 w = std::max((*mminw).value, w);
             }
 
             if (mmaxw)
             {
-                printf("GOT MAXW\n");
+                // printf("GOT MAXW\n");
                 w = std::min((*mmaxw).value, w);
             }
 
             if (!bHeightFixed)
             {
-                printf("SETTING TO AVAILABLE HEIGHT %s\n", _e.get<comps::Name>().cString());
+                // printf("SETTING TO AVAILABLE HEIGHT %s\n", _e.get<comps::Name>().cString());
                 h = pos.y - _y;
             }
 
             if (mminh)
             {
-                printf("GOT MINH\n");
+                // printf("GOT MINH\n");
                 h = std::max((*mminh).value, h);
             }
 
             if (mmaxh)
             {
-                printf("GOT MAXH\n");
+                // printf("GOT MAXH\n");
                 h = std::min((*mmaxh).value, h);
             }
 
-            printf("%s X %f Y %f MW %f MH %f\n", _e.get<comps::Name>().cString(), _x, _y, w, h);
+            // printf("%s X %f Y %f MW %f MH %f\n", _e.get<comps::Name>().cString(), _x, _y, w, h);
             _e.set<comps::ComputedLayout>(Rect(_x, _y, _x + w, _y + h), bWidthFixed, bHeightFixed, _generation);
 
             /*//if my size was relative, iterate over all children again and relayout with the now known dimensions
@@ -675,5 +699,10 @@ namespace box
         }
 
         return ret;
+    }
+
+    void addEventCallback(Entity _e, const EventHandler::Callback & _cb)
+    {
+        _e.get<comps::EventHandler>()->addEventCallback(_cb);
     }
 }
