@@ -42,6 +42,11 @@ namespace box
         return m_modifiedButton;
     }
 
+    const MouseState & MouseEvent::mouseState() const
+    {
+        return m_state;
+    }
+
     MouseMoveEvent::MouseMoveEvent(const MouseState & _state) :
         MouseEvent(_state, 0, 0, MouseButton::None)
     {
@@ -68,6 +73,13 @@ namespace box
 
     MouseScrollEvent::MouseScrollEvent(const MouseState & _state, Float32 _scrollX, Float32 _scrollY) :
         MouseEvent(_state, _scrollX, _scrollY, MouseButton::None)
+    {
+
+    }
+
+
+    MouseEnterEvent::MouseEnterEvent(const MouseState & _state) :
+        MouseEvent(_state, 0, 0, MouseButton::None)
     {
 
     }

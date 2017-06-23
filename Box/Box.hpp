@@ -91,6 +91,7 @@ namespace box
 
         //event handling components
         using EventHandler = brick::Component<ComponentName("EventHandler"), stick::UniquePtr<EventHandler>>;
+        using MouseOn = brick::Component<ComponentName("EventHandler"), bool>;
     }
 
     STICK_API bool isUndefined(Float _value);
@@ -119,6 +120,8 @@ namespace box
     STICK_API void setMaxHeight(brick::Entity _e, Float _height, Unit _unit = Unit::Pixels);
 
     STICK_API void addEventCallback(brick::Entity _e, const EventHandler::Callback & _cb);
+
+    STICK_API brick::Entity nodeAtPosition(brick::Entity _e, Float _x, Float _y);
 
     // STICK_API void appendToDebugString(
     //                             const brick::Entity & _e,

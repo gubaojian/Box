@@ -37,6 +37,17 @@ namespace box
          * @brief Returns a run time identifier that uniquely identifies the type of the event.
          */
         virtual stick::TypeID eventTypeID() const = 0;
+
+        // @TODO: This is kinda weird in terms of const correctness
+        // as we pass events by const reference.
+        //
+        void stopPropagation() const;
+
+        bool propagationStopped() const;
+
+    private:
+
+        mutable bool m_bStopPropagation;
     };
 
     typedef stick::UniquePtr<Event> EventPtr;

@@ -17,7 +17,7 @@ namespace mycomps
 
 brick::Entity root;
 
-void recursivelyDrawDocument(Entity _e, gla::GLAnnotate & _renderer)
+static void recursivelyDrawDocument(Entity _e, gla::GLAnnotate & _renderer)
 {
     auto mc = _e.maybe<mycomps::BackgroundColor>();
     if (mc)
@@ -36,7 +36,7 @@ void recursivelyDrawDocument(Entity _e, gla::GLAnnotate & _renderer)
     }
 }
 
-void mouseButtonCallback(GLFWwindow * window, int button, int action, int mods)
+static void mouseButtonCallback(GLFWwindow * window, int button, int action, int mods)
 {
     double xpos, ypos;
     glfwGetCursorPos(window, &xpos, &ypos);
@@ -49,7 +49,11 @@ void mouseButtonCallback(GLFWwindow * window, int button, int action, int mods)
     {
         root.get<comps::EventHandler>()->publish(MouseUpEvent(MouseState(xpos, ypos, (UInt32)MouseButton::Left), MouseButton::Left));
     }
+}
 
+static void mouseMoveCallback(GLFWwindow * window, double xpos, double ypos)
+{
+    root.get<comps::EventHandler>()->publish(MouseMoveEvent(MouseState(xpos, ypos, 0)));
 }
 
 int main(int _argc, const char * _args[])
@@ -70,6 +74,8 @@ int main(int _argc, const char * _args[])
     if (window)
     {
         glfwSetMouseButtonCallback(window, mouseButtonCallback);
+        glfwSetCursorPosCallback(window, mouseMoveCallback);
+
         glfwMakeContextCurrent(window);
 
         gla::GLAnnotate gla;
@@ -135,6 +141,22 @@ int main(int _argc, const char * _args[])
         {
             printf("RELEASE BABY\n");
             _self.set<mycomps::BackgroundColor>(0.1f, 0.1f, 1.0f, 1.0f);
+        });
+
+        addEventCallback(i, [](const MouseMoveEvent & _e, brick::Entity _self)
+        {
+            printf("MOUSE MOVE ON I BABY!!!!!!!!!!!!\n");
+        });
+
+        addEventCallback(c, [](const MouseMoveEvent & _e, brick::Entity _self)
+        {
+            _e.stopPropagation();
+            printf("MOUSE MOVE ON C BABY!!!!!!!!!!!!\n");
+        });
+
+        addEventCallback(i, [](const MouseEnterEvent & _e, brick::Entity _self)
+        {
+            // printf("MOUSE ENTER!!!!!!!!!!!!\n");
         });
 
         // the main loop

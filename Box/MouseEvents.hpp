@@ -25,6 +25,8 @@ namespace box
         //returns the button associated with this event
         MouseButton button() const;
 
+        const MouseState & mouseState() const;
+
     private:
 
         MouseState m_state;
@@ -76,6 +78,15 @@ namespace box
     public:
 
         MouseScrollEvent(const MouseState & _state, stick::Float32 _scrollX, stick::Float32 _scrollY);
+    };
+
+    class STICK_API MouseEnterEvent :
+        public MouseEvent,
+        public EventT<MouseEnterEvent>
+    {
+    public:
+
+        MouseEnterEvent(const MouseState & _state);
     };
 }
 

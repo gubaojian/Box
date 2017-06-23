@@ -139,7 +139,8 @@ namespace box
 
             EventPublisherType::publish(evt);
 
-            m_forwardingPolicy.forward(evt, m_children);
+            if(!_evt.propagationStopped())
+                m_forwardingPolicy.forward(evt, m_children);
 
             return true;
         }

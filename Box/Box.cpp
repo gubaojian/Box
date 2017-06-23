@@ -129,14 +129,35 @@ namespace box
         eh->addEventFilter([](const MouseDownEvent & _e, Entity _self)
         {
             STICK_ASSERT(_self.hasComponent<comps::ComputedLayout>());
-            auto & box = _self.get<comps::ComputedLayout>().box;
             return !_self.get<comps::ComputedLayout>().box.contains(_e.x(), _e.y());
         });
 
         eh->addEventFilter([](const MouseUpEvent & _e, Entity _self)
         {
             STICK_ASSERT(_self.hasComponent<comps::ComputedLayout>());
-            auto & box = _self.get<comps::ComputedLayout>().box;
+            return !_self.get<comps::ComputedLayout>().box.contains(_e.x(), _e.y());
+        });
+
+        eh->addEventFilter([](const MouseMoveEvent & _e, Entity _self)
+        {
+            STICK_ASSERT(_self.hasComponent<comps::ComputedLayout>());
+            bool bContains = _self.get<comps::ComputedLayout>().box.contains(_e.x(), _e.y());
+
+            // @TODO: Is it kinda dirty to detect the MouseEnter event here?
+            // works fine :)
+            auto mbon = _self.maybe<comps::MouseOn>();
+            if (!mbon && bContains)
+            {
+                _self.set<comps::MouseOn>(true);
+                _self.get<comps::EventHandler>()->publish(MouseEnterEvent(_e.mouseState()));
+            }
+
+            return !bContains;
+        });
+
+        eh->addEventFilter([](const MouseEnterEvent & _e, Entity _self)
+        {
+            STICK_ASSERT(_self.hasComponent<comps::ComputedLayout>());
             return !_self.get<comps::ComputedLayout>().box.contains(_e.x(), _e.y());
         });
 
@@ -704,5 +725,37 @@ namespace box
     void addEventCallback(Entity _e, const EventHandler::Callback & _cb)
     {
         _e.get<comps::EventHandler>()->addEventCallback(_cb);
+    }
+
+    Entity nodeAtPosition(Entity _e, Float _x, Float _y)
+    {
+        STICK_ASSERT(_e.hasComponent<comps::ComputedLayout>());
+        if (_e.get<comps::ComputedLayout>().box.contains(_x, _y))
+        {
+            // find the top most child that contains _x, _y
+            auto mchildren = _e.maybe<comps::Children>();
+            if (mchildren)
+            {
+                for(Entity & child : *mchildren)
+                {
+                    // @TODO: Get rid of recursive call to avoid max stack depth errors for
+                    // hugely nested documents? (most likely not gonna be a real issue though)
+                    Entity tmp = nodeAtPosition(child, _x, _y);
+                    if(tmp)
+                        return tmp;
+                }
+
+                //if none of the children were hit, return self
+                return _e;
+            }
+            else
+            {
+                // if there are no children, return self
+                return _e;
+            }
+        }
+
+        // nothing hit braa
+        return Entity();
     }
 }
