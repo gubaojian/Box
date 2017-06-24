@@ -48,6 +48,18 @@ namespace box
         Unit unit;
     };
 
+    // class STICK_API Document
+    // {
+    // public:
+
+    //     Document(brick::Hub & _hub = defaultHub());
+
+
+    //     brick::Entity root();
+
+    // private:
+    // };
+
     using EventHandler = EventForwarderT<Event, detail::ForwardingPolicyBasic, detail::PublishingPolicyBasic, brick::Entity>;
 
     namespace comps

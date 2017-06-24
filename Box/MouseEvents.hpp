@@ -88,6 +88,15 @@ namespace box
 
         MouseEnterEvent(const MouseState & _state);
     };
+
+    class STICK_API MouseLeaveEvent :
+        public MouseEvent,
+        public EventT<MouseLeaveEvent>
+    {
+    public:
+
+        MouseLeaveEvent(const MouseState & _state);
+    };
 }
 
 #endif //BOX_MOUSEEVENTS_HPP

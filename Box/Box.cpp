@@ -143,14 +143,35 @@ namespace box
             STICK_ASSERT(_self.hasComponent<comps::ComputedLayout>());
             bool bContains = _self.get<comps::ComputedLayout>().box.contains(_e.x(), _e.y());
 
-            // @TODO: Is it kinda dirty to detect the MouseEnter event here?
+            // @TODO: Is it kinda dirty to detect the MouseEnter and MouseLeave event here?
             // works fine :)
             auto mbon = _self.maybe<comps::MouseOn>();
             if (!mbon && bContains)
             {
                 _self.set<comps::MouseOn>(true);
-                _self.get<comps::EventHandler>()->publish(MouseEnterEvent(_e.mouseState()));
+                _self.get<comps::EventHandler>()->publish(MouseEnterEvent(_e.mouseState()), false);
             }
+            else
+            {
+                // check if we need to fire the mouse leave event for any of the direct children
+                // @Note: This is not super efficient. Maybe have a list of actively hovered items?
+                // @Note2: We need to solve MouseLeave on the parent level to avoid the case where
+                // we leave the parent and the child at the same time in which case the MouseMoveEvent
+                // modifier of the child will never be reached and thus the MouseLeaveEvent never fire.
+                auto mchildren = _self.maybe<comps::Children>();
+                if(mchildren)
+                {
+                    for (Entity & child : *mchildren)
+                    {
+                        if(child.hasComponent<comps::MouseOn>() && !child.get<comps::ComputedLayout>().box.contains(_e.x(), _e.y()))
+                        {
+                            child.removeComponent<comps::MouseOn>();
+                            child.get<comps::EventHandler>()->publish(MouseLeaveEvent(_e.mouseState()), false);
+                        }
+                    }
+                }
+            }
+            // End Sketchy portion
 
             return !bContains;
         });
@@ -736,12 +757,12 @@ namespace box
             auto mchildren = _e.maybe<comps::Children>();
             if (mchildren)
             {
-                for(Entity & child : *mchildren)
+                for (Entity & child : *mchildren)
                 {
                     // @TODO: Get rid of recursive call to avoid max stack depth errors for
                     // hugely nested documents? (most likely not gonna be a real issue though)
                     Entity tmp = nodeAtPosition(child, _x, _y);
-                    if(tmp)
+                    if (tmp)
                         return tmp;
                 }
 

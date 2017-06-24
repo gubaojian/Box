@@ -284,11 +284,11 @@ const Suite spec[] =
         int childCalledCount = 0;
         int testEvent2Called = 0;
         child.addEventCallback([&](const TestEvent2 & _evt) { testEvent2Called++; });
-        child.addEventCallback([&](const TestEvent & _evt) { childCalledCount++; child.publish(TestEvent2()); });
+        child.addEventCallback([&](const TestEvent & _evt) { childCalledCount++; child.publish(TestEvent2(), true); });
 
-        publisher.publish(TestEvent());
+        publisher.publish(TestEvent(), true);
         //this event should be filtered
-        publisher.publish(TestEvent(20));
+        publisher.publish(TestEvent(20), true);
         EXPECT(bWasCalled);
         //check if the event modifier worked
         EXPECT(lastTestEvent.someMember == 99);
@@ -319,7 +319,7 @@ const Suite spec[] =
             *_arg = 13;
         });
 
-        publisher.publish(TestEvent());
+        publisher.publish(TestEvent(), true);
 
         EXPECT(a == 54);
         EXPECT(b == 13);

@@ -77,8 +77,13 @@ namespace box
 
     }
 
-
     MouseEnterEvent::MouseEnterEvent(const MouseState & _state) :
+        MouseEvent(_state, 0, 0, MouseButton::None)
+    {
+
+    }
+
+    MouseLeaveEvent::MouseLeaveEvent(const MouseState & _state) :
         MouseEvent(_state, 0, 0, MouseButton::None)
     {
 

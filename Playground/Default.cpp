@@ -43,17 +43,17 @@ static void mouseButtonCallback(GLFWwindow * window, int button, int action, int
 
     if (action == GLFW_PRESS)
     {
-        root.get<comps::EventHandler>()->publish(MouseDownEvent(MouseState(xpos, ypos, (UInt32)MouseButton::Left), MouseButton::Left));
+        root.get<comps::EventHandler>()->publish(MouseDownEvent(MouseState(xpos, ypos, (UInt32)MouseButton::Left), MouseButton::Left), true);
     }
     else if (action == GLFW_RELEASE)
     {
-        root.get<comps::EventHandler>()->publish(MouseUpEvent(MouseState(xpos, ypos, (UInt32)MouseButton::Left), MouseButton::Left));
+        root.get<comps::EventHandler>()->publish(MouseUpEvent(MouseState(xpos, ypos, (UInt32)MouseButton::Left), MouseButton::Left), true);
     }
 }
 
 static void mouseMoveCallback(GLFWwindow * window, double xpos, double ypos)
 {
-    root.get<comps::EventHandler>()->publish(MouseMoveEvent(MouseState(xpos, ypos, 0)));
+    root.get<comps::EventHandler>()->publish(MouseMoveEvent(MouseState(xpos, ypos, 0)), true);
 }
 
 int main(int _argc, const char * _args[])
@@ -134,7 +134,7 @@ int main(int _argc, const char * _args[])
         addEventCallback(i, [](const MouseDownEvent & _e, brick::Entity _self)
         {
             printf("CLICKED BABY\n");
-            _self.set<mycomps::BackgroundColor>(0.9f, 0.1f, 0.0f, 1.0f);
+            _self.set<mycomps::BackgroundColor>(0.9f, 0.9f, 0.0f, 1.0f);
         });
 
         addEventCallback(i, [](const MouseUpEvent & _e, brick::Entity _self)
@@ -145,18 +145,19 @@ int main(int _argc, const char * _args[])
 
         addEventCallback(i, [](const MouseMoveEvent & _e, brick::Entity _self)
         {
-            printf("MOUSE MOVE ON I BABY!!!!!!!!!!!!\n");
-        });
-
-        addEventCallback(c, [](const MouseMoveEvent & _e, brick::Entity _self)
-        {
-            _e.stopPropagation();
-            printf("MOUSE MOVE ON C BABY!!!!!!!!!!!!\n");
+            // printf("MOUSE MOVE ON I BABY!!!!!!!!!!!!\n");
         });
 
         addEventCallback(i, [](const MouseEnterEvent & _e, brick::Entity _self)
         {
-            // printf("MOUSE ENTER!!!!!!!!!!!!\n");
+            printf("MOUSE ENTER!!!!!!!!!!!!\n");
+            _self.set<mycomps::BackgroundColor>(0.9f, 0.1f, 0.0f, 1.0f);
+        });
+
+        addEventCallback(i, [](const MouseLeaveEvent & _e, brick::Entity _self)
+        {
+            printf("MOUSE LEAVE!!!!!!!!!!!!\n");
+            _self.set<mycomps::BackgroundColor>(0.1f, 0.1f, 1.0f, 1.0f);
         });
 
         // the main loop

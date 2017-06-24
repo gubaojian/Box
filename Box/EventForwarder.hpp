@@ -54,7 +54,7 @@ namespace box
             {
                 for (auto * f : _forwarders)
                 {
-                    f->publish(_evt);
+                    f->publish(_evt, true);
                 }
             }
 
@@ -125,7 +125,7 @@ namespace box
             m_modifierStorage.removeCallback(_id);
         }
 
-        bool publish(const EventType & _evt)
+        bool publish(const EventType & _evt, bool _bPropagate)
         {
             //apply filters
             if (filterAny(_evt))
@@ -139,7 +139,7 @@ namespace box
 
             EventPublisherType::publish(evt);
 
-            if(!_evt.propagationStopped())
+            if(_bPropagate && !_evt.propagationStopped())
                 m_forwardingPolicy.forward(evt, m_children);
 
             return true;
