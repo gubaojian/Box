@@ -89,6 +89,8 @@ int main(int _argc, const char * _args[])
 
         root = createNode("DAAA Root");
         setSize(root, 800.0f, 600.0f);
+        setPadding(root, 50.0f);
+        
         root.set <mycomps::BackgroundColor>(0.5f, 0.3f, 0.1f, 1.0f);
         auto a = createNode("DAAA A");
         setHeight(a, 200.0f);
@@ -97,6 +99,7 @@ int main(int _argc, const char * _args[])
         auto b = createNode("DAAA FUUUUUCK B");
         setSize(b, 600.0f, 100.0f);
         setMaxWidth(b, 500.0f);
+        setMaxHeight(b, 200.0f);
         b.set <mycomps::BackgroundColor>(0.3f, 0.3f, 0.3f, 1.0f);
         addChild(a, b);
 
@@ -140,7 +143,7 @@ int main(int _argc, const char * _args[])
         addEventCallback(i, [](const MouseUpEvent & _e, brick::Entity _self)
         {
             printf("RELEASE BABY\n");
-            _self.set<mycomps::BackgroundColor>(0.1f, 0.1f, 1.0f, 1.0f);
+            _self.set<mycomps::BackgroundColor>(0.9f, 0.1f, 0.0f, 1.0f);
         });
 
         addEventCallback(i, [](const MouseMoveEvent & _e, brick::Entity _self)
@@ -152,12 +155,14 @@ int main(int _argc, const char * _args[])
         {
             printf("MOUSE ENTER!!!!!!!!!!!!\n");
             _self.set<mycomps::BackgroundColor>(0.9f, 0.1f, 0.0f, 1.0f);
+            setWidth(_self, 90.0f);
         });
 
         addEventCallback(i, [](const MouseLeaveEvent & _e, brick::Entity _self)
         {
             printf("MOUSE LEAVE!!!!!!!!!!!!\n");
             _self.set<mycomps::BackgroundColor>(0.1f, 0.1f, 1.0f, 1.0f);
+            setWidth(_self, 30.0f);
         });
 
         // the main loop
@@ -165,8 +170,12 @@ int main(int _argc, const char * _args[])
         Randomizer rnd;
         while (!glfwWindowShouldClose(window))
         {
+            // printf("FRAME\n");
+
             // setWidth(root, rnd.randomf(400, 800));
             layout(root, 800, 600);
+            // if(i.get<comps::Dirty>())
+            //     printf("I AM DIRTY\n");
             // printf("POST LAYOUT\n");
 
             // clear the background to black

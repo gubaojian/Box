@@ -49,7 +49,15 @@ namespace box
         SpaceAround
     };
 
-    STICK_API_ENUM_CLASS(Align)
+    STICK_API_ENUM_CLASS(AlignItems)
+    {
+        Start,
+        Center,
+        End,
+        Stretch
+    };
+
+    STICK_API_ENUM_CLASS(AlignLines)
     {
         Start,
         Center,

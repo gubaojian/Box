@@ -60,6 +60,14 @@ namespace box
     // private:
     // };
 
+    enum class DirtyFlag
+    {
+        NotDirty,
+        Dirty,
+        ChildrenDirty,
+        PositionDirty
+    };
+
     using EventHandler = EventForwarderT<Event, detail::ForwardingPolicyBasic, detail::PublishingPolicyBasic, brick::Entity>;
 
     namespace comps
@@ -69,7 +77,7 @@ namespace box
         using Children = brick::Component<ComponentName("Children"), EntityArray>;
         using HubPointer = brick::Component<ComponentName("HubPointer"), brick::Hub *>;
         using HasNewLayout = brick::Component<ComponentName("HasNewLayout"), bool>;
-        using Dirty = brick::Component<ComponentName("Dirty"), bool>;
+        using Dirty = brick::Component<ComponentName("Dirty"), DirtyFlag>;
         using ComputedLayout = brick::Component<ComponentName("ComputedLayout"), detail::ComputedLayout>;
 
         //styling components
@@ -84,7 +92,8 @@ namespace box
         using Direction = brick::Component<ComponentName("Direction"), box::Direction>;
         using Wrap = brick::Component<ComponentName("Wrap"), box::Wrap>;
         using Justify = brick::Component<ComponentName("Justify"), box::Justify>;
-        using Align = brick::Component<ComponentName("Align"), box::Align>;
+        using AlignItems = brick::Component<ComponentName("AlignItems"), box::AlignItems>;
+        using AlignLines = brick::Component<ComponentName("AlignLines"), box::AlignLines>;
         using Grow = brick::Component<ComponentName("Grow"), Float>;
         using Shrink = brick::Component<ComponentName("Shrink"), Float>;
         using Position = brick::Component<ComponentName("Position"), box::Position>;
@@ -130,6 +139,9 @@ namespace box
     STICK_API void setMaxSize(brick::Entity _e, Value _width, Value _height);
     STICK_API void setMaxWidth(brick::Entity _e, Float _width, Unit _unit = Unit::Pixels);
     STICK_API void setMaxHeight(brick::Entity _e, Float _height, Unit _unit = Unit::Pixels);
+
+    STICK_API void setPadding(brick::Entity _e, Float _padding, Unit _unit = Unit::Pixels);
+    STICK_API void setPadding(brick::Entity _e, Value _value);
 
     STICK_API void addEventCallback(brick::Entity _e, const EventHandler::Callback & _cb);
 

@@ -43,42 +43,90 @@ namespace box
             return v && !isUndefined((*v).value);
         }
 
-        bool isDirty(Entity _e)
+        DirtyFlag dirty(Entity _e)
         {
             if (auto df = _e.maybe<comps::Dirty>())
             {
                 return *df;
             }
-            return false;
+            return DirtyFlag::NotDirty;
         }
 
-        void markDirty(Entity _e)
+        void markChildrenDirty(Entity _e)
         {
-            //if it's allready marked dirty, we done here
-            if (isDirty(_e))
-                return;
-
-            //otherwise do da stuff
-            _e.set<comps::Dirty>(true);
-
-            //check if we need to mark the parent dirty
-            auto p = _e.maybe<comps::Parent>();
-            if (p)
-            {
-                if (!isWidthDefined(*p) || !isHeightDefined(*p))
-                    markDirty(*p);
-            }
-
-            //set the children dirty that don't have definite dimensions
             auto mc = _e.maybe<comps::Children>();
             if (mc)
             {
                 for (Entity c : *mc)
                 {
-                    if (!isWidthDefinite(c) || !isHeightDefinite(c))
-                        markDirty(c);
+                    if (isWidthDefined(c) || !isHeightDefined(c))
+                        c.set<comps::Dirty>(DirtyFlag::Dirty);
+                    else
+                        c.set<comps::Dirty>(DirtyFlag::PositionDirty);
+
+                    markChildrenDirty(c);
                 }
             }
+        }
+
+        void markParentDirty(Entity _e)
+        {
+            auto p = _e.maybe<comps::Parent>();
+            while (p)
+            {
+                if (!isWidthDefined(*p) || !isHeightDefined(*p))
+                    (*p).set<comps::Dirty>(DirtyFlag::Dirty);
+                else
+                    (*p).set<comps::Dirty>(DirtyFlag::ChildrenDirty);
+
+                auto mchildren = (*p).maybe<comps::Children>();
+                for (Entity & child : *mchildren)
+                {
+                    if (child != _e)
+                    {
+                        child.set<comps::Dirty>(DirtyFlag::Dirty);
+                        markChildrenDirty(child);
+                    }
+                }
+
+                p = (*p).maybe<comps::Parent>();
+            }
+        }
+
+        void markDirty(Entity _e)
+        {
+            // printf("A\n");
+            // //if it's allready marked dirty, we done here
+            // if (dirty(_e) == DirtyFlag::Dirty)
+            //     return;
+
+            // printf("B\n");
+
+            //otherwise do da stuff
+            _e.set<comps::Dirty>(DirtyFlag::Dirty);
+
+            //check if we need to mark the parent dirty
+            // auto p = _e.maybe<comps::Parent>();
+            // if (p)
+            // {
+            //     printf("GOT PARENT %s\n", (*p).get<comps::Name>().cString());
+            //     // if (!isWidthDefined(*p) || !isHeightDefined(*p))
+            //     {
+            //         printf("MARK PARENT DIRTY\n");
+            //         markDirty(*p);
+            //     }
+            // }
+
+            // // while (p)
+            // // {
+            // //     if (!isWidthDefined(*p) || !isHeightDefined(*p))
+            // //         (*p).set<comps::Dirty>(true);
+            // //     else
+            // //         (*p).set<comps::ChildrenDirty>(true);
+            // //     p = (*p).maybe<comps::Parent>();
+            // // }
+            markParentDirty(_e);
+            markChildrenDirty(_e);
         }
 
         void removeFromParent(Entity _e)
@@ -159,11 +207,11 @@ namespace box
                 // we leave the parent and the child at the same time in which case the MouseMoveEvent
                 // modifier of the child will never be reached and thus the MouseLeaveEvent never fire.
                 auto mchildren = _self.maybe<comps::Children>();
-                if(mchildren)
+                if (mchildren)
                 {
                     for (Entity & child : *mchildren)
                     {
-                        if(child.hasComponent<comps::MouseOn>() && !child.get<comps::ComputedLayout>().box.contains(_e.x(), _e.y()))
+                        if (child.hasComponent<comps::MouseOn>() && !child.get<comps::ComputedLayout>().box.contains(_e.x(), _e.y()))
                         {
                             child.removeComponent<comps::MouseOn>();
                             child.get<comps::EventHandler>()->publish(MouseLeaveEvent(_e.mouseState()), false);
@@ -321,6 +369,21 @@ namespace box
         detail::markDirty(_e);
     }
 
+    void setPadding(Entity _e, Float _padding, Unit _unit)
+    {
+        setPadding(_e, Value(_padding, _unit));
+    }
+
+    void setPadding(Entity _e, Value _value)
+    {
+        _e.set<comps::PaddingLeft>(_value);
+        _e.set<comps::PaddingTop>(_value);
+        _e.set<comps::PaddingRight>(_value);
+        _e.set<comps::PaddingBottom>(_value);
+        //@TODO: Optimize by only marking children dirty and self + parents with DirtyFlag::ChildrenDirty
+        detail::markDirty(_e);
+    }
+
     namespace detail
     {
         struct Line
@@ -340,7 +403,7 @@ namespace box
         template<class C, class T>
         T findComponentOr(Entity _e, T _or)
         {
-            auto mo = findComponent<C>(_e);
+            auto mo = _e.maybe<C>();
             if (mo) return *mo;
             return _or;
         }
@@ -370,14 +433,45 @@ namespace box
             return findComponentOr<comps::Justify>(_e, Justify::Start);
         }
 
-        Align resolveAlign(Entity _e)
+        AlignItems resolveAlignItems(Entity _e)
         {
-            return findComponentOr<comps::Align>(_e, Align::Start);
+            return findComponentOr<comps::AlignItems>(_e, AlignItems::Stretch);
+        }
+
+        AlignLines resolveAlignLines(Entity _e)
+        {
+            return findComponentOr<comps::AlignLines>(_e, AlignLines::Stretch);
         }
 
         Position resolvePosition(Entity _e)
         {
             return findComponentOr<comps::Position>(_e, Position::Relative);
+        }
+
+        Float resolveValue(const Value & _value, Float _parentSize)
+        {
+            if (_value.unit == Unit::Pixels)
+                return _value.value;
+
+            printf("PERCENTAGE %f\n", _parentSize);
+            if (isUndefined(_parentSize))
+                return 0.0;
+
+            return _value.value * _parentSize * 0.01;
+        }
+
+        Float resolveWidth(Entity _e, Float _w, Float _parentWidth)
+        {
+            Float minval = resolveValue(_e.getOrDefault<comps::MinWidth>(Value(0.0f)), _parentWidth);
+            Float maxval = resolveValue(_e.getOrDefault<comps::MaxWidth>(Value(std::numeric_limits<Float>::max())), _parentWidth);
+            return std::min(std::max(_w, minval), maxval);
+        }
+
+        Float resolveHeight(Entity _e, Float _w, Float _parentHeight)
+        {
+            Float minval = resolveValue(_e.getOrDefault<comps::MinHeight>(Value(0.0f)), _parentHeight);
+            Float maxval = resolveValue(_e.getOrDefault<comps::MaxHeight>(Value(std::numeric_limits<Float>::max())), _parentHeight);
+            return std::min(std::max(_w, minval), maxval);
         }
 
         Size generation(Entity _e)
@@ -388,6 +482,7 @@ namespace box
 
         Size nextGeneration(Entity _e)
         {
+            // printf("NEXT GEN %lu\n", generation(_e) + 1);
             return generation(_e) + 1;
         }
 
@@ -396,7 +491,7 @@ namespace box
             //layoutImpl()
         }
 
-        bool layoutImpl(Entity _e,
+        void layoutImpl(Entity _e,
                         Float _x, Float _y,
                         Float _availableWidth, Float _availableHeight,
                         Float _parentWidth, Float _parentHeight, Size _generation,
@@ -426,30 +521,25 @@ namespace box
             }
         }
 
-        // bool layoutImplStarter(Entity _e,
-        //                        Float _x, Float _y,
-        //                        Float _availableWidth, Float _availableHeight,
-        //                        Float _parentWidth, Float _parentHeight, Size _generation,
-        //                        Error & _outError)
-        // {
-        //     if (!isDirty(_e))
-        //     {
-        //         return false;
-        //     }
-        //     return layoutImpl(_e, _x, _y, _availableWidth, _availableHeight,
-        //                       _parentWidth, _parentHeight, _generation, _outError);
-        // }
-
         Vec2f generateLines(Entity _e, Float _x, Float _y, Float _availableWidth, Float _availableHeight,
                             Float _parentWidth, Float _parentHeight,
                             Size _generation, DynamicArray<Line> & _outLines, Error & _outError)
         {
             // printf("GENERATING LINES FOR %s\n", _e.get<comps::Name>().cString());
             auto mchildren = _e.maybe<comps::Children>();
+            Float paddingLeft = resolveValue(_e.getOrDefault<comps::PaddingLeft>(Value(0.0)), _parentWidth);
+            Float paddingTop = resolveValue(_e.getOrDefault<comps::PaddingTop>(Value(0.0)), _parentHeight);
+            Float paddingRight = resolveValue(_e.getOrDefault<comps::PaddingRight>(Value(0.0)), _parentWidth);
+            Float paddingBottom = resolveValue(_e.getOrDefault<comps::PaddingBottom>(Value(0.0)), _parentHeight);
+
+            _x += paddingLeft;
+            _y += paddingTop;
+            _availableWidth -= paddingLeft + paddingRight;
+            _availableHeight -= paddingTop + paddingBottom;
+            Float aw = _availableWidth;
             Float currentX = _x;
             Float currentY = _y;
-            Float aw = _availableWidth;
-            if (mchildren)
+            if (mchildren && (*mchildren).count())
             {
                 auto & children = *mchildren;
                 Line currentLine;
@@ -482,6 +572,18 @@ namespace box
                 if (currentLine.items.count())
                     _outLines.append(currentLine);
 
+
+                bool bRelayoutChildren = false;
+                auto ma = resolveAlignItems(_e);
+                auto mal = resolveAlignLines(_e);
+                auto mj = _e.maybe<comps::Justify>();
+                if (ma == AlignItems::Stretch || mal == AlignLines::Stretch)
+                {
+                    printf("I THINK WE STRETCH\n");
+                    bRelayoutChildren = true;
+                }
+
+                Float allHeight = 0;
                 for (Line & line : _outLines)
                 {
                     Float lineHeight = 0;
@@ -492,26 +594,20 @@ namespace box
                         if (b.height() > lineHeight)
                             lineHeight = b.height();
                     }
-                    currentY += lineHeight;
 
-                    auto ma = _e.maybe<comps::Align>();
-                    if (!ma || *ma == Align::Stretch)
+                    currentY += lineHeight;
+                    allHeight += lineHeight;
+
+                    if (ma == AlignItems::Stretch)
                     {
                         for (Entity & c : line.items)
                         {
-                            // printf("RELAYOUT STRETCH\n");
                             Rect & b = c.get<comps::ComputedLayout>().box;
-                            b.setSize(b.width(), lineHeight);
-
-                            //@TODO: the mark dirty call is slow and ugly :(
-                            DynamicArray<Line> lines;
-                            detail::markDirty(c);
-                            generateLines(c, b.min().x, b.min().y, b.width(), b.height(), b.width(), b.height(), _generation, lines, _outError);
-                            //@TODO: Handle error?
+                            // Float minh = c.maybe<comps::
+                            b.setSize(b.width(), resolveHeight(c, lineHeight, _parentHeight));
                         }
                     }
 
-                    auto mj = _e.maybe<comps::Justify>();
                     if (mj)
                     {
                         if (*mj != Justify::Start)
@@ -556,11 +652,47 @@ namespace box
                         }
                     }
                 }
+
+                if (mal == AlignLines::Stretch)
+                {
+                    Float left = _availableHeight - allHeight;
+                    Float perLine = left / _outLines.count();
+                    printf("%s LEFT %f %f %f %f\n", _e.get<comps::Name>().cString(), _availableHeight, allHeight, left, perLine);
+                    Float delta = 0;
+                    for (Line & line : _outLines)
+                    {
+                        for (Entity & c : line.items)
+                        {
+                            Rect & b = c.get<comps::ComputedLayout>().box;
+                            b.setSize(b.width(), resolveHeight(c, b.height() + perLine, _parentHeight));
+                            b.moveBy(0, delta);
+                        }
+                        delta += perLine;
+                    }
+                }
+
+                if (bRelayoutChildren)
+                {
+                    printf("RELAYOUT CHILDREN\n");
+                    for (Line & line : _outLines)
+                    {
+                        for (Entity & c : line.items)
+                        {
+                            Rect & b = c.get<comps::ComputedLayout>().box;
+
+                            //@TODO: the mark dirty call is slow and ugly :(
+                            DynamicArray<Line> lines;
+                            markChildrenDirty(c);
+                            generateLines(c, b.min().x, b.min().y, b.width(), b.height(), b.width(), b.height(), _generation, lines, _outError);
+                            //@TODO: Handle error?
+                        }
+                    }
+                }
             }
             return Vec2f(currentX, currentY);
         }
 
-        bool layoutImpl(Entity _e,
+        void layoutImpl(Entity _e,
                         Float _x, Float _y,
                         Float _availableWidth, Float _availableHeight,
                         Float _parentWidth, Float _parentHeight, Size _generation,
@@ -568,133 +700,91 @@ namespace box
         {
             // printf("layoutImpl %s %lu %lu %f %f\n", _e.get<comps::Name>().cString(), generation(_e), _generation, _x, _y);
 
-            if (!isDirty(_e))
-                return false;
-
-            //Direction dir = resolveDirection(_e, _parentDirection);
-            auto mcl = _e.maybe<comps::ComputedLayout>();
-
-            //This node was allready layouted and has a fixed size...
-            if (generation(_e) == _generation && mcl && (*mcl).bFixedWidth && (*mcl).bFixedHeight)
+            DirtyFlag df = dirty(_e);
+            if (df == DirtyFlag::Dirty)
             {
-                //...so at best we need to recursively adjust the positioning for this node
-                //and all its children
+                printf("LAYOUT SELF &  CHLDREN %s\n", _e.get<comps::Name>().cString());
+                //Direction dir = resolveDirection(_e, _parentDirection);
+                // auto mcl = _e.maybe<comps::ComputedLayout>();
+
+                // //This node was allready layouted and has a fixed size...
+                // if (generation(_e) == _generation && mcl && (*mcl).bFixedWidth && (*mcl).bFixedHeight)
+                // {
+                //     printf("GENERATION %lu\n", _generation);
+                //     //...so at best we need to recursively adjust the positioning for this node
+                //     //and all its children
+                //     if (_x != (*mcl).box.min().x || _y != (*mcl).box.min().y)
+                //     {
+                //         // printf("MOVING BRO\n");
+                //         recursivelyMoveBy(_e, _x - (*mcl).box.min().x, _y - (*mcl).box.min().y);
+                //     }
+                //     _e.set<comps::Dirty>(DirtyFlag::NotDirty);
+                //     return;
+                // }
+
+                auto mw = _e.maybe<comps::Width>();
+                auto mh = _e.maybe<comps::Height>();
+                bool bWidthFixed = false;
+                bool bHeightFixed = false;
+                Float w, h;
+                Float availableWidth = _availableWidth;
+                Float availableHeight = _availableHeight;
+                if (mw)
+                {
+                    availableWidth = resolveWidth(_e, resolveValue(*mw, _parentWidth), _parentWidth);
+                    bWidthFixed = true;
+                }
+
+                if (mh)
+                {
+                    availableHeight = resolveHeight(_e, resolveValue(*mh, _parentHeight), _parentHeight);
+                    bHeightFixed = true;
+                }
+
+                w = availableWidth;
+                h = availableHeight;
+
+                DynamicArray<Line> lines;
+                //if this is a relative width item, we save the widht of the resulting line of its children
+                // printf("GENERATING LINES %f %f %f %f\n", availableWidth, availableHeight, w, h);
+                Vec2f pos = generateLines(_e, _x, _y, availableWidth, availableHeight, w, h, _generation, lines, _outError);
+
+                //@TODO: Handle error?
+
+                if (!bWidthFixed)
+                {
+                    w = resolveWidth(_e, pos.x - _x, _parentWidth);
+                    // printf("NO FIXED W %f\n", w);
+                }
+
+                if (!bHeightFixed)
+                {
+                    // printf("SETTING TO AVAILABLE HEIGHT %s\n", _e.get<comps::Name>().cString());
+                    h = resolveHeight(_e, pos.y - _y, _parentHeight);
+                }
+
+                // printf("%s X %f Y %f MW %f MH %f\n", _e.get<comps::Name>().cString(), _x, _y, w, h);
+                _e.set<comps::ComputedLayout>(Rect(_x, _y, _x + w, _y + h), bWidthFixed, bHeightFixed, _generation);
+            }
+            else if (df == DirtyFlag::PositionDirty)
+            {
+                printf("MOVE BYYYY\n");
+                auto mcl = _e.maybe<comps::ComputedLayout>();
                 if (_x != (*mcl).box.min().x || _y != (*mcl).box.min().y)
                 {
                     // printf("MOVING BRO\n");
                     recursivelyMoveBy(_e, _x - (*mcl).box.min().x, _y - (*mcl).box.min().y);
                 }
-                return false;
             }
-
-            auto mw = _e.maybe<comps::Width>();
-            auto mminw = _e.maybe<comps::MinWidth>();
-            auto mmaxw = _e.maybe<comps::MaxWidth>();
-            auto mh = _e.maybe<comps::Height>();
-            auto mminh = _e.maybe<comps::MinHeight>();
-            auto mmaxh = _e.maybe<comps::MinWidth>();
-            bool bWidthFixed = false;
-            bool bHeightFixed = false;
-            Float w, h;
-            Float availableWidth = _availableWidth;
-            Float availableHeight = _availableHeight;
-            if (mw)
+            else if (df == DirtyFlag::ChildrenDirty)
             {
-                // printf("GOT A WIDTH\n");
-                if ((*mw).unit == Unit::Pixels)
-                {
-                    availableWidth = (*mw).value;
-                    bWidthFixed = true;
-                }
-                else
-                {
-                    if (!isUndefined(_parentWidth))
-                    {
-                        availableWidth = (*mw).value * _parentWidth * 0.01;
-                        // printf("SETTING PERCENTAGE WIDTH\n");
-                        bWidthFixed = true;
-                    }
-                }
+                printf("LAYOUT  CHLDREN\n");
+                DynamicArray<Line> lines;
+                auto & box = _e.get<comps::ComputedLayout>().box;
+                _e.get<comps::ComputedLayout>().generation = _generation;
+                Vec2f pos = generateLines(_e, _x, _y, box.width(), box.height(), box.width(), box.height(), _generation, lines, _outError);
             }
-
-            if (mh)
-            {
-                // printf("GOT A HEIGHT\n");
-                if ((*mh).unit == Unit::Pixels)
-                {
-                    availableHeight = (*mh).value;
-                    bHeightFixed = true;
-                }
-                else
-                {
-                    if (!isUndefined(_parentHeight))
-                    {
-                        availableHeight = (*mh).value * _parentHeight * 0.1;
-                        bWidthFixed = true;
-                    }
-                }
-            }
-
-            w = availableWidth;
-            h = availableHeight;
-
-            DynamicArray<Line> lines;
-            //if this is a relative width item, we save the widht of the resulting line of its children
-            // printf("GENERATING LINES %f %f %f %f\n", availableWidth, availableHeight, w, h);
-            Vec2f pos = generateLines(_e, _x, _y, availableWidth, availableHeight, w, h, _generation, lines, _outError);
-
-            //@TODO: Handle error?
-
-            if (!bWidthFixed)
-            {
-                w = pos.x - _x;
-                // printf("NO FIXED W %f\n", w);
-            }
-
-            if (mminw)
-            {
-                // printf("GOT MINW\n");
-                w = std::max((*mminw).value, w);
-            }
-
-            if (mmaxw)
-            {
-                // printf("GOT MAXW\n");
-                w = std::min((*mmaxw).value, w);
-            }
-
-            if (!bHeightFixed)
-            {
-                // printf("SETTING TO AVAILABLE HEIGHT %s\n", _e.get<comps::Name>().cString());
-                h = pos.y - _y;
-            }
-
-            if (mminh)
-            {
-                // printf("GOT MINH\n");
-                h = std::max((*mminh).value, h);
-            }
-
-            if (mmaxh)
-            {
-                // printf("GOT MAXH\n");
-                h = std::min((*mmaxh).value, h);
-            }
-
-            // printf("%s X %f Y %f MW %f MH %f\n", _e.get<comps::Name>().cString(), _x, _y, w, h);
-            _e.set<comps::ComputedLayout>(Rect(_x, _y, _x + w, _y + h), bWidthFixed, bHeightFixed, _generation);
-
-            /*//if my size was relative, iterate over all children again and relayout with the now known dimensions
-            if (!bHeightFixed || !bWidthFixed)
-            {
-                printf("LAST LAYOUT BRO\n");
-                lines.clear();
-                generateLines(_e, _x, _y, w, h, w, h, generation, lines, _outError);
-            }*/
-
-            _e.removeComponent<comps::Dirty>();
-
-            return true;
+            _e.set<comps::Dirty>(DirtyFlag::NotDirty);
         }
     }
 
