@@ -26,6 +26,10 @@ namespace box
         struct STICK_API ComputedLayout
         {
             Rect box;
+            Float marginLeft;
+            Float marginTop;
+            Float marginRight;
+            Float marginBottom;
             bool bFixedWidth;
             bool bFixedHeight;
             stick::Size generation;
@@ -143,6 +147,9 @@ namespace box
     STICK_API void setPadding(brick::Entity _e, Float _padding, Unit _unit = Unit::Pixels);
     STICK_API void setPadding(brick::Entity _e, Value _value);
 
+    STICK_API void setMargin(brick::Entity _e, Float _margin, Unit _unit = Unit::Pixels);
+    STICK_API void setMargin(brick::Entity _e, Value _value);
+
     STICK_API void addEventCallback(brick::Entity _e, const EventHandler::Callback & _cb);
 
     STICK_API brick::Entity nodeAtPosition(brick::Entity _e, Float _x, Float _y);
@@ -195,7 +202,7 @@ namespace box
                 if (_func(c))
                     return c;
                 auto ret = findChildRecursively(c, _func);
-                if(ret) return ret;
+                if (ret) return ret;
             }
         }
 

@@ -384,6 +384,28 @@ namespace box
         detail::markDirty(_e);
     }
 
+
+    void setMargin(Entity _e, Float _margin, Unit _unit)
+    {
+        setMargin(_e, Value(_margin, _unit));
+    }
+
+    void setMargin(Entity _e, Value _value)
+    {
+        _e.set<comps::MarginLeft>(_value);
+        _e.set<comps::MarginTop>(_value);
+        _e.set<comps::MarginRight>(_value);
+        _e.set<comps::MarginBottom>(_value);
+
+        // mark parent and siblings dirty
+        // detail::markParentDirty(_e);
+
+        // _e.set<comps::Dirty>(DirtyFlag::ChildrenDirty);
+        //TODO: We mark children dirty for now. Technically we should only mark their position dirty
+        // detail::markChildrenDirty(_e);
+        detail::markDirty(_e);
+    }
+
     namespace detail
     {
         struct Line
@@ -435,12 +457,12 @@ namespace box
 
         AlignItems resolveAlignItems(Entity _e)
         {
-            return findComponentOr<comps::AlignItems>(_e, AlignItems::Stretch);
+            return findComponentOr<comps::AlignItems>(_e, AlignItems::Start);
         }
 
         AlignLines resolveAlignLines(Entity _e)
         {
-            return findComponentOr<comps::AlignLines>(_e, AlignLines::Stretch);
+            return findComponentOr<comps::AlignLines>(_e, AlignLines::Start);
         }
 
         Position resolvePosition(Entity _e)
@@ -493,7 +515,6 @@ namespace box
 
         void layoutImpl(Entity _e,
                         Float _x, Float _y,
-                        Float _availableWidth, Float _availableHeight,
                         Float _parentWidth, Float _parentHeight, Size _generation,
                         Error & _outError);
 
@@ -521,7 +542,7 @@ namespace box
             }
         }
 
-        Vec2f generateLines(Entity _e, Float _x, Float _y, Float _availableWidth, Float _availableHeight,
+        Vec2f generateLines(Entity _e, Float _x, Float _y,
                             Float _parentWidth, Float _parentHeight,
                             Size _generation, DynamicArray<Line> & _outLines, Error & _outError)
         {
@@ -534,9 +555,9 @@ namespace box
 
             _x += paddingLeft;
             _y += paddingTop;
-            _availableWidth -= paddingLeft + paddingRight;
-            _availableHeight -= paddingTop + paddingBottom;
-            Float aw = _availableWidth;
+            Float availableWidth = _parentWidth - paddingLeft - paddingRight;
+            Float availableHeight = _parentHeight - paddingTop - paddingBottom;
+            Float aw = availableWidth;
             Float currentX = _x;
             Float currentY = _y;
             if (mchildren && (*mchildren).count())
@@ -547,26 +568,27 @@ namespace box
                 for (Entity & child : children)
                 {
                     // printf("AW %f AH %f\n", aw, _availableHeight);
-                    layoutImpl(child, currentX, _y, _availableWidth, _availableHeight, _parentWidth, _parentHeight, _generation, _outError);
+                    layoutImpl(child, currentX, _y, _parentWidth, _parentHeight, _generation, _outError);
                     //@TODO: Handle error?
                     STICK_ASSERT(child.hasComponent<comps::ComputedLayout>());
-                    Float s = child.get<comps::ComputedLayout>().box.width();
+                    auto & cl = child.get<comps::ComputedLayout>();
+                    Float s = cl.box.width() + cl.marginLeft + cl.marginRight;
                     // printf("DATA: %f %f\n", _availableWidth, s);
                     if (aw >= s)
                     {
                         currentLine.items.append(child);
                         aw -= s;
-                        currentX += s; //@TODO:Margin + Border
+                        currentX += s;
                     }
                     else
                     {
                         // printf("MAKING NEW LINE YOOOO!!!\n");
                         _outLines.append(currentLine);
                         currentLine = Line();
-                        child.get<comps::ComputedLayout>().box.setPosition(_x, _y);
+                        cl.box.setPosition(_x + cl.marginLeft, _y + cl.marginTop);
                         currentLine.items.append(child);
-                        aw = _availableWidth - s;
-                        currentX = s + _x; //@TODO:Margin + Border
+                        aw = availableWidth - s;
+                        currentX = s + _x;
                     }
                 }
                 if (currentLine.items.count())
@@ -589,10 +611,11 @@ namespace box
                     Float lineHeight = 0;
                     for (Entity & c : line.items)
                     {
-                        Rect & b = c.get<comps::ComputedLayout>().box;
-                        b.setPosition(b.min().x, currentY);
-                        if (b.height() > lineHeight)
-                            lineHeight = b.height();
+                        auto & cl = c.get<comps::ComputedLayout>();
+                        cl.box.setPosition(cl.box.min().x, currentY + cl.marginTop);
+                        auto h = cl.box.height() + cl.marginTop + cl.marginBottom;
+                        if (h > lineHeight)
+                            lineHeight = h;
                     }
 
                     currentY += lineHeight;
@@ -602,9 +625,9 @@ namespace box
                     {
                         for (Entity & c : line.items)
                         {
-                            Rect & b = c.get<comps::ComputedLayout>().box;
-                            // Float minh = c.maybe<comps::
-                            b.setSize(b.width(), resolveHeight(c, lineHeight, _parentHeight));
+                            auto & cl = c.get<comps::ComputedLayout>();
+                            Rect & b = cl.box;
+                            b.setSize(b.width(), resolveHeight(c, lineHeight - cl.marginTop - cl.marginBottom, _parentHeight));
                         }
                     }
 
@@ -615,10 +638,11 @@ namespace box
                             Float width = 0;
                             for (Entity & c : line.items)
                             {
-                                width += c.get<comps::ComputedLayout>().box.width();
+                                auto & cl = c.get<comps::ComputedLayout>();
+                                width += cl.box.width() + cl.marginLeft + cl.marginRight;
                             }
 
-                            Float spaceLeft = _availableWidth - width;
+                            Float spaceLeft = availableWidth - width;
 
                             if (*mj == Justify::SpaceBetween)
                             {
@@ -655,9 +679,9 @@ namespace box
 
                 if (mal == AlignLines::Stretch)
                 {
-                    Float left = _availableHeight - allHeight;
+                    Float left = availableHeight - allHeight;
                     Float perLine = left / _outLines.count();
-                    printf("%s LEFT %f %f %f %f\n", _e.get<comps::Name>().cString(), _availableHeight, allHeight, left, perLine);
+                    printf("%s LEFT %f %f %f %f\n", _e.get<comps::Name>().cString(), availableHeight, allHeight, left, perLine);
                     Float delta = 0;
                     for (Line & line : _outLines)
                     {
@@ -683,7 +707,7 @@ namespace box
                             //@TODO: the mark dirty call is slow and ugly :(
                             DynamicArray<Line> lines;
                             markChildrenDirty(c);
-                            generateLines(c, b.min().x, b.min().y, b.width(), b.height(), b.width(), b.height(), _generation, lines, _outError);
+                            generateLines(c, b.min().x, b.min().y, b.width(), b.height(), _generation, lines, _outError);
                             //@TODO: Handle error?
                         }
                     }
@@ -694,7 +718,6 @@ namespace box
 
         void layoutImpl(Entity _e,
                         Float _x, Float _y,
-                        Float _availableWidth, Float _availableHeight,
                         Float _parentWidth, Float _parentHeight, Size _generation,
                         Error & _outError)
         {
@@ -724,11 +747,23 @@ namespace box
 
                 auto mw = _e.maybe<comps::Width>();
                 auto mh = _e.maybe<comps::Height>();
+
+                //get margins
+                Float ml = resolveValue(_e.getOrDefault<comps::MarginLeft>(Value(0.0)), _parentWidth);
+                Float mt = resolveValue(_e.getOrDefault<comps::MarginTop>(Value(0.0)), _parentHeight);
+                Float mr = resolveValue(_e.getOrDefault<comps::MarginRight>(Value(0.0)), _parentWidth);
+                Float mb = resolveValue(_e.getOrDefault<comps::MarginBottom>(Value(0.0)), _parentHeight);
+
+                printf("DA MARGINS %s %f %f %f %f\n", _e.get<comps::Name>().cString(), ml, mt, mr, mb);
+
+                Float x = _x + ml;
+                Float y = _y + mt;
+
                 bool bWidthFixed = false;
                 bool bHeightFixed = false;
                 Float w, h;
-                Float availableWidth = _availableWidth;
-                Float availableHeight = _availableHeight;
+                Float availableWidth = _parentWidth - ml - mr;
+                Float availableHeight = _parentHeight - mb - mt;
                 if (mw)
                 {
                     availableWidth = resolveWidth(_e, resolveValue(*mw, _parentWidth), _parentWidth);
@@ -747,24 +782,24 @@ namespace box
                 DynamicArray<Line> lines;
                 //if this is a relative width item, we save the widht of the resulting line of its children
                 // printf("GENERATING LINES %f %f %f %f\n", availableWidth, availableHeight, w, h);
-                Vec2f pos = generateLines(_e, _x, _y, availableWidth, availableHeight, w, h, _generation, lines, _outError);
+                Vec2f pos = generateLines(_e, x, y, w, h, _generation, lines, _outError);
 
                 //@TODO: Handle error?
 
                 if (!bWidthFixed)
                 {
-                    w = resolveWidth(_e, pos.x - _x, _parentWidth);
+                    w = resolveWidth(_e, pos.x - x, _parentWidth);
                     // printf("NO FIXED W %f\n", w);
                 }
 
                 if (!bHeightFixed)
                 {
                     // printf("SETTING TO AVAILABLE HEIGHT %s\n", _e.get<comps::Name>().cString());
-                    h = resolveHeight(_e, pos.y - _y, _parentHeight);
+                    h = resolveHeight(_e, pos.y - y, _parentHeight);
                 }
 
                 // printf("%s X %f Y %f MW %f MH %f\n", _e.get<comps::Name>().cString(), _x, _y, w, h);
-                _e.set<comps::ComputedLayout>(Rect(_x, _y, _x + w, _y + h), bWidthFixed, bHeightFixed, _generation);
+                _e.set<comps::ComputedLayout>(Rect(x, y, x + w, y + h), ml, mt, mr, mb, bWidthFixed, bHeightFixed, _generation);
             }
             else if (df == DirtyFlag::PositionDirty)
             {
@@ -782,7 +817,7 @@ namespace box
                 DynamicArray<Line> lines;
                 auto & box = _e.get<comps::ComputedLayout>().box;
                 _e.get<comps::ComputedLayout>().generation = _generation;
-                Vec2f pos = generateLines(_e, _x, _y, box.width(), box.height(), box.width(), box.height(), _generation, lines, _outError);
+                Vec2f pos = generateLines(_e, _x, _y, box.width(), box.height(), _generation, lines, _outError);
             }
             _e.set<comps::Dirty>(DirtyFlag::NotDirty);
         }
@@ -808,7 +843,7 @@ namespace box
             }
         }*/
 
-        detail::layoutImpl(_e, 0, 0, _width, _height, _width, _height, detail::nextGeneration(_e), ret);
+        detail::layoutImpl(_e, 0, 0, _width, _height, detail::nextGeneration(_e), ret);
 
         return ret;
     }

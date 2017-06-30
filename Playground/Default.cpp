@@ -90,7 +90,7 @@ int main(int _argc, const char * _args[])
         root = createNode("DAAA Root");
         setSize(root, 800.0f, 600.0f);
         setPadding(root, 50.0f);
-        
+
         root.set <mycomps::BackgroundColor>(0.5f, 0.3f, 0.1f, 1.0f);
         auto a = createNode("DAAA A");
         setHeight(a, 200.0f);
@@ -131,6 +131,7 @@ int main(int _argc, const char * _args[])
 
         auto i = createNode("I");
         setSize(i, 30.0f, 60.0f);
+        setMargin(i, 10);
         i.set <mycomps::BackgroundColor>(0.1f, 0.1f, 1.0f, 1.0f);
         addChild(c, i);
 
