@@ -73,11 +73,26 @@ namespace box
         Absolute
     };
 
+    STICK_API_ENUM_CLASS(TagType)
+    {
+        Box,
+        Image,
+        Custom
+    };
+
     STICK_API_ENUM_CLASS(DebugStringOptions)
     {
         ComputedLayout = 1 << 0,
         Style = 1 << 1,
         Children = 1 << 2
+    };
+
+    STICK_API_ENUM_CLASS(BackgroundImageWrap)
+    {
+        Repeat,
+        Stretch,
+        Cover,
+        Once
     };
 
     // enable bit masking for that enum

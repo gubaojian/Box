@@ -42,6 +42,11 @@ namespace box
     public:
 
         MouseMoveEvent(const MouseState & _state);
+
+        MouseMoveEvent(const MouseMoveEvent&) = default;
+        MouseMoveEvent(MouseMoveEvent&&) = default;
+        MouseMoveEvent & operator = (const MouseMoveEvent&) = default;
+        MouseMoveEvent & operator = (MouseMoveEvent&&) = default;
     };
 
     class STICK_API MouseDragEvent :

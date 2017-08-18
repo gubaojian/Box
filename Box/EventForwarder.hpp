@@ -127,13 +127,16 @@ namespace box
 
         bool publish(const EventType & _evt, bool _bPropagate)
         {
+            printf("A\n");
             //apply filters
             if (filterAny(_evt))
                 return false;
 
+            printf("B\n");
             bool bFilter = filterImpl(_evt, detail::MakeIndexSequence<sizeof...(PassAlongArgs)>());
             if (bFilter) return false;
 
+            printf("C\n");
             EventUniquePtr tempStorage;
             const EventType & evt = modifyImpl(tempStorage, _evt, detail::MakeIndexSequence<sizeof...(PassAlongArgs)>());
 
@@ -142,6 +145,7 @@ namespace box
             if(_bPropagate && !_evt.propagationStopped())
                 m_forwardingPolicy.forward(evt, m_children);
 
+            printf("D\n");
             return true;
         }
 

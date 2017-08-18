@@ -1,7 +1,10 @@
 #include <Box/Box.hpp>
 #include <Box/MouseEvents.hpp>
+#include <Box/DocumentInterface.hpp>
 
 #include <Stick/ErrorCodes.hpp>
+
+#include <tuple>
 
 namespace box
 {
@@ -74,18 +77,22 @@ namespace box
             auto p = _e.maybe<comps::Parent>();
             while (p)
             {
-                if (!isWidthDefined(*p) || !isHeightDefined(*p))
-                    (*p).set<comps::Dirty>(DirtyFlag::Dirty);
-                else
-                    (*p).set<comps::Dirty>(DirtyFlag::ChildrenDirty);
-
-                auto mchildren = (*p).maybe<comps::Children>();
-                for (Entity & child : *mchildren)
+                auto md = (*p).maybe<comps::Dirty>();
+                if (md && *md != DirtyFlag::Dirty)
                 {
-                    if (child != _e)
+                    if (!isWidthDefined(*p) || !isHeightDefined(*p))
+                        (*p).set<comps::Dirty>(DirtyFlag::Dirty);
+                    else
+                        (*p).set<comps::Dirty>(DirtyFlag::ChildrenDirty);
+
+                    auto mchildren = (*p).maybe<comps::Children>();
+                    for (Entity & child : *mchildren)
                     {
-                        child.set<comps::Dirty>(DirtyFlag::Dirty);
-                        markChildrenDirty(child);
+                        if (child != _e)
+                        {
+                            child.set<comps::Dirty>(DirtyFlag::Dirty);
+                            markChildrenDirty(child);
+                        }
                     }
                 }
 
@@ -93,12 +100,34 @@ namespace box
             }
         }
 
+        // Entity rootNode(Entity _e)
+        // {
+        //     auto mparent = _e.maybe<comps::Parent>();
+        //     while (mparent)
+        //     {
+        //         _e = *mparent;
+        //         mparent = _e.maybe<comps::Parent>();
+        //     }
+        //     return _e;
+        // }
+
+        // void markForRendering(Entity _e)
+        // {
+        //     //this is slow...should we somehow save the document handle in
+        //     //every node to avoid traversing the document till the root?
+        //     auto document = rootNode(_e);
+        //     STICK_ASSERT(document);
+        //     document.set<comps::RendererDirty>(true);
+        // }
+
         void markDirty(Entity _e)
         {
             // printf("A\n");
             // //if it's allready marked dirty, we done here
-            // if (dirty(_e) == DirtyFlag::Dirty)
-            //     return;
+
+            auto md = _e.maybe<comps::Dirty>();
+            if (md && *md == DirtyFlag::Dirty)
+                return;
 
             // printf("B\n");
 
@@ -160,6 +189,83 @@ namespace box
                 removeFromParent(_e);
             _e.destroy();
         }
+
+        Entity createNodeImpl(const String & _name, Hub & _hub)
+        {
+            Entity node = _hub.createEntity();
+            auto eh = makeUnique<EventHandler>();
+            eh->setPassAlongArguments(node);
+
+            eh->addEventFilter([](const MouseDownEvent & _e, Entity _self)
+            {
+                STICK_ASSERT(_self.hasComponent<comps::ComputedLayout>());
+                return !_self.get<comps::ComputedLayout>().box.contains(_e.x(), _e.y());
+            });
+
+            eh->addEventFilter([](const MouseUpEvent & _e, Entity _self)
+            {
+                STICK_ASSERT(_self.hasComponent<comps::ComputedLayout>());
+                return !_self.get<comps::ComputedLayout>().box.contains(_e.x(), _e.y());
+            });
+
+            eh->addEventFilter([](const MouseMoveEvent & _e, Entity _self)
+            {
+                // STICK_ASSERT(_self.hasComponent<comps::ComputedLayout>());
+                if (!_self.hasComponent<comps::ComputedLayout>())
+                    return false;
+
+                bool bContains = _self.get<comps::ComputedLayout>().box.contains(_e.x(), _e.y());
+
+                // @TODO: Is it kinda dirty to detect the MouseEnter and MouseLeave event here?
+                // works fine :)
+                auto mbon = _self.maybe<comps::MouseOn>();
+                if (!mbon && bContains)
+                {
+                    _self.set<comps::MouseOn>(true);
+                    _self.get<comps::EventHandler>()->publish(MouseEnterEvent(_e.mouseState()), false);
+                }
+                else
+                {
+                    // check if we need to fire the mouse leave event for any of the direct children
+                    // @Note: This is not super efficient. Maybe have a list of actively hovered items?
+                    // @Note2: We need to solve MouseLeave on the parent level to avoid the case where
+                    // we leave the parent and the child at the same time in which case the MouseMoveEvent
+                    // modifier of the child will never be reached and thus the MouseLeaveEvent never fire.
+                    auto mchildren = _self.maybe<comps::Children>();
+                    if (mchildren)
+                    {
+                        for (Entity & child : *mchildren)
+                        {
+                            if (child.hasComponent<comps::MouseOn>() && !child.get<comps::ComputedLayout>().box.contains(_e.x(), _e.y()))
+                            {
+                                child.removeComponent<comps::MouseOn>();
+                                child.get<comps::EventHandler>()->publish(MouseLeaveEvent(_e.mouseState()), false);
+                            }
+                        }
+                    }
+                }
+                // End Sketchy portion
+
+                return !bContains;
+            });
+
+            eh->addEventFilter([](const MouseEnterEvent & _e, Entity _self)
+            {
+                STICK_ASSERT(_self.hasComponent<comps::ComputedLayout>());
+                return !_self.get<comps::ComputedLayout>().box.contains(_e.x(), _e.y());
+            });
+
+            node.set<comps::EventHandler>(std::move(eh));
+
+            if (_name.length())
+                node.set<comps::Name>(_name);
+            return node;
+        }
+    }
+
+    void markDirty(Entity _e)
+    {
+        detail::markDirty(_e);
     }
 
     Hub & defaultHub()
@@ -168,79 +274,30 @@ namespace box
         return s_hub;
     }
 
-    Entity createNode(const String & _name, Hub & _hub)
+    Entity createDocument(DocumentInterface * _interface, Hub & _hub)
     {
-        Entity node = _hub.createEntity();
-        auto eh = makeUnique<EventHandler>();
-        eh->setPassAlongArguments(node);
+        Entity doc = detail::createNodeImpl("document", _hub);
+        if (_interface)
+            doc.set<comps::DocumentInterface>(_interface);
 
-        eh->addEventFilter([](const MouseDownEvent & _e, Entity _self)
-        {
-            STICK_ASSERT(_self.hasComponent<comps::ComputedLayout>());
-            return !_self.get<comps::ComputedLayout>().box.contains(_e.x(), _e.y());
-        });
+        //we also add the document component on the document so we
+        //can treat it like any other noder in that regard
+        doc.set<comps::Document>(doc);
+        return doc;
+    }
 
-        eh->addEventFilter([](const MouseUpEvent & _e, Entity _self)
-        {
-            STICK_ASSERT(_self.hasComponent<comps::ComputedLayout>());
-            return !_self.get<comps::ComputedLayout>().box.contains(_e.x(), _e.y());
-        });
-
-        eh->addEventFilter([](const MouseMoveEvent & _e, Entity _self)
-        {
-            STICK_ASSERT(_self.hasComponent<comps::ComputedLayout>());
-            bool bContains = _self.get<comps::ComputedLayout>().box.contains(_e.x(), _e.y());
-
-            // @TODO: Is it kinda dirty to detect the MouseEnter and MouseLeave event here?
-            // works fine :)
-            auto mbon = _self.maybe<comps::MouseOn>();
-            if (!mbon && bContains)
-            {
-                _self.set<comps::MouseOn>(true);
-                _self.get<comps::EventHandler>()->publish(MouseEnterEvent(_e.mouseState()), false);
-            }
-            else
-            {
-                // check if we need to fire the mouse leave event for any of the direct children
-                // @Note: This is not super efficient. Maybe have a list of actively hovered items?
-                // @Note2: We need to solve MouseLeave on the parent level to avoid the case where
-                // we leave the parent and the child at the same time in which case the MouseMoveEvent
-                // modifier of the child will never be reached and thus the MouseLeaveEvent never fire.
-                auto mchildren = _self.maybe<comps::Children>();
-                if (mchildren)
-                {
-                    for (Entity & child : *mchildren)
-                    {
-                        if (child.hasComponent<comps::MouseOn>() && !child.get<comps::ComputedLayout>().box.contains(_e.x(), _e.y()))
-                        {
-                            child.removeComponent<comps::MouseOn>();
-                            child.get<comps::EventHandler>()->publish(MouseLeaveEvent(_e.mouseState()), false);
-                        }
-                    }
-                }
-            }
-            // End Sketchy portion
-
-            return !bContains;
-        });
-
-        eh->addEventFilter([](const MouseEnterEvent & _e, Entity _self)
-        {
-            STICK_ASSERT(_self.hasComponent<comps::ComputedLayout>());
-            return !_self.get<comps::ComputedLayout>().box.contains(_e.x(), _e.y());
-        });
-
-        node.set<comps::EventHandler>(std::move(eh));
-
-        if (_name.length())
-            node.set<comps::Name>(_name);
-        return node;
+    Entity createNode(brick::Entity _document, const String & _name)
+    {
+        Entity ret = detail::createNodeImpl(_name, *_document.hub());
+        ret.set<comps::Document>(_document);
+        return ret;
     }
 
     void addChild(Entity _e, Entity _child)
     {
         STICK_ASSERT(_e.isValid());
         STICK_ASSERT(_child.isValid());
+        STICK_ASSERT(_e.hub() == _child.hub());
 
         if (!_e.hasComponent<comps::Children>())
             _e.set<comps::Children>(EntityArray());
@@ -291,11 +348,20 @@ namespace box
         detail::removeImpl(_e, true);
     }
 
-    void setSize(Entity _e, Float _width, Float _height, Unit _unit)
+    void setTag(Entity _e, const String & _tag)
     {
-        _e.set<comps::Width>(Value(_width, _unit));
-        _e.set<comps::Height>(Value(_height, _unit));
-        detail::markDirty(_e);
+        if (_tag == "box")
+        {
+            _e.set<comps::Tag>(TagType::Box);
+        }
+        else if (_tag == "img")
+        {
+            _e.set<comps::Tag>(TagType::Image);
+        }
+        else
+        {
+            _e.set<comps::Tag>(_tag);
+        }
     }
 
     void setSize(Entity _e, Value _width, Value _height)
@@ -305,22 +371,16 @@ namespace box
         detail::markDirty(_e);
     }
 
-    void setWidth(Entity _e, Float _width, Unit _unit)
+    void setWidth(Entity _e, Value _w)
     {
-        _e.set<comps::Width>(Value(_width, _unit));
+        printf("SET WIDTH %f %s\n", _w.value, _w.unit == Unit::Percent ? "%" : "px");
+        _e.set<comps::Width>(_w);
         detail::markDirty(_e);
     }
 
-    void setHeight(Entity _e, Float _height, Unit _unit)
+    void setHeight(Entity _e, Value _h)
     {
-        _e.set<comps::Height>(Value(_height, _unit));
-        detail::markDirty(_e);
-    }
-
-    void setMinSize(Entity _e, Float _width, Float _height, Unit _unit)
-    {
-        _e.set<comps::MinWidth>(Value(_width, _unit));
-        _e.set<comps::MinHeight>(Value(_height, _unit));
+        _e.set<comps::Height>(_h);
         detail::markDirty(_e);
     }
 
@@ -331,22 +391,15 @@ namespace box
         detail::markDirty(_e);
     }
 
-    void setMinWidth(Entity _e, Float _width, Unit _unit)
+    void setMinWidth(Entity _e, Value _val)
     {
-        _e.set<comps::MinWidth>(Value(_width, _unit));
+        _e.set<comps::MinWidth>(_val);
         detail::markDirty(_e);
     }
 
-    void setMinHeight(Entity _e, Float _height, Unit _unit)
+    void setMinHeight(Entity _e, Value _val)
     {
-        _e.set<comps::MinHeight>(Value(_height, _unit));
-        detail::markDirty(_e);
-    }
-
-    void setMaxSize(Entity _e, Float _width, Float _height, Unit _unit)
-    {
-        _e.set<comps::MaxWidth>(Value(_width, _unit));
-        _e.set<comps::MaxHeight>(Value(_height, _unit));
+        _e.set<comps::MinHeight>(_val);
         detail::markDirty(_e);
     }
 
@@ -357,25 +410,21 @@ namespace box
         detail::markDirty(_e);
     }
 
-    void setMaxWidth(Entity _e, Float _width, Unit _unit)
+    void setMaxWidth(Entity _e, Value _val)
     {
-        _e.set<comps::MaxWidth>(Value(_width, _unit));
+        _e.set<comps::MaxWidth>(_val);
         detail::markDirty(_e);
     }
 
-    void setMaxHeight(Entity _e, Float _height, Unit _unit)
+    void setMaxHeight(Entity _e, Value _val)
     {
-        _e.set<comps::MaxHeight>(Value(_height, _unit));
+        _e.set<comps::MaxHeight>(_val);
         detail::markDirty(_e);
-    }
-
-    void setPadding(Entity _e, Float _padding, Unit _unit)
-    {
-        setPadding(_e, Value(_padding, _unit));
     }
 
     void setPadding(Entity _e, Value _value)
     {
+        printf("SET DA PADDING\n");
         _e.set<comps::PaddingLeft>(_value);
         _e.set<comps::PaddingTop>(_value);
         _e.set<comps::PaddingRight>(_value);
@@ -384,10 +433,61 @@ namespace box
         detail::markDirty(_e);
     }
 
-
-    void setMargin(Entity _e, Float _margin, Unit _unit)
+    void setPadding(Entity _e, Value _top, Value _right, Value _bottom, Value _left)
     {
-        setMargin(_e, Value(_margin, _unit));
+        _e.set<comps::PaddingTop>(_top);
+        _e.set<comps::PaddingRight>(_right);
+        _e.set<comps::PaddingBottom>(_bottom);
+        _e.set<comps::PaddingLeft>(_left);
+        //@TODO: Optimize by only marking children dirty and self + parents with DirtyFlag::ChildrenDirty
+        detail::markDirty(_e);
+    }
+
+    void setPadding(Entity _e, Value _top, Value _right, Value _bottom)
+    {
+        _e.set<comps::PaddingTop>(_top);
+        _e.set<comps::PaddingRight>(_right);
+        _e.set<comps::PaddingBottom>(_bottom);
+        //@TODO: Optimize by only marking children dirty and self + parents with DirtyFlag::ChildrenDirty
+        detail::markDirty(_e);
+    }
+
+    void setPadding(Entity _e, Value _vertical, Value _horizontal)
+    {
+        _e.set<comps::PaddingTop>(_vertical);
+        _e.set<comps::PaddingRight>(_horizontal);
+        _e.set<comps::PaddingBottom>(_vertical);
+        _e.set<comps::PaddingLeft>(_horizontal);
+        //@TODO: Optimize by only marking children dirty and self + parents with DirtyFlag::ChildrenDirty
+        detail::markDirty(_e);
+    }
+
+    void setPaddingLeft(Entity _e, Value _value)
+    {
+        _e.set<comps::PaddingLeft>(_value);
+        //@TODO: Optimize by only marking children dirty and self + parents with DirtyFlag::ChildrenDirty
+        detail::markDirty(_e);
+    }
+
+    void setPaddingTop(Entity _e, Value _value)
+    {
+        _e.set<comps::PaddingTop>(_value);
+        //@TODO: Optimize by only marking children dirty and self + parents with DirtyFlag::ChildrenDirty
+        detail::markDirty(_e);
+    }
+
+    void setPaddingRight(Entity _e, Value _value)
+    {
+        _e.set<comps::PaddingRight>(_value);
+        //@TODO: Optimize by only marking children dirty and self + parents with DirtyFlag::ChildrenDirty
+        detail::markDirty(_e);
+    }
+
+    void setPaddingBottom(Entity _e, Value _value)
+    {
+        _e.set<comps::PaddingBottom>(_value);
+        //@TODO: Optimize by only marking children dirty and self + parents with DirtyFlag::ChildrenDirty
+        detail::markDirty(_e);
     }
 
     void setMargin(Entity _e, Value _value)
@@ -397,12 +497,59 @@ namespace box
         _e.set<comps::MarginRight>(_value);
         _e.set<comps::MarginBottom>(_value);
 
-        // mark parent and siblings dirty
-        // detail::markParentDirty(_e);
+        detail::markDirty(_e);
+    }
 
-        // _e.set<comps::Dirty>(DirtyFlag::ChildrenDirty);
-        //TODO: We mark children dirty for now. Technically we should only mark their position dirty
-        // detail::markChildrenDirty(_e);
+    void setMargin(Entity _e, Value _top, Value _right, Value _bottom, Value _left)
+    {
+        _e.set<comps::MarginTop>(_top);
+        _e.set<comps::MarginRight>(_right);
+        _e.set<comps::MarginBottom>(_bottom);
+        _e.set<comps::MarginLeft>(_left);
+
+        detail::markDirty(_e);
+    }
+
+    void setMargin(Entity _e, Value _top, Value _right, Value _bottom)
+    {
+        _e.set<comps::MarginTop>(_top);
+        _e.set<comps::MarginRight>(_right);
+        _e.set<comps::MarginBottom>(_bottom);
+
+        detail::markDirty(_e);
+    }
+
+    void setMargin(Entity _e, Value _vertical, Value _horizontal)
+    {
+        _e.set<comps::MarginTop>(_vertical);
+        _e.set<comps::MarginRight>(_horizontal);
+        _e.set<comps::MarginBottom>(_vertical);
+        _e.set<comps::MarginLeft>(_horizontal);
+
+        detail::markDirty(_e);
+    }
+
+    void setMarginLeft(Entity _e, Value _value)
+    {
+        _e.set<comps::MarginLeft>(_value);
+        detail::markDirty(_e);
+    }
+
+    void setMarginTop(Entity _e, Value _value)
+    {
+        _e.set<comps::MarginTop>(_value);
+        detail::markDirty(_e);
+    }
+
+    void setMarginRight(Entity _e, Value _value)
+    {
+        _e.set<comps::MarginRight>(_value);
+        detail::markDirty(_e);
+    }
+
+    void setMarginBottom(Entity _e, Value _value)
+    {
+        _e.set<comps::MarginBottom>(_value);
         detail::markDirty(_e);
     }
 
@@ -457,12 +604,12 @@ namespace box
 
         AlignItems resolveAlignItems(Entity _e)
         {
-            return findComponentOr<comps::AlignItems>(_e, AlignItems::Start);
+            return findComponentOr<comps::AlignItems>(_e, AlignItems::Stretch);
         }
 
         AlignLines resolveAlignLines(Entity _e)
         {
-            return findComponentOr<comps::AlignLines>(_e, AlignLines::Start);
+            return findComponentOr<comps::AlignLines>(_e, AlignLines::Stretch);
         }
 
         Position resolvePosition(Entity _e)
@@ -513,7 +660,7 @@ namespace box
             //layoutImpl()
         }
 
-        void layoutImpl(Entity _e,
+        Size layoutImpl(Entity _e,
                         Float _x, Float _y,
                         Float _parentWidth, Float _parentHeight, Size _generation,
                         Error & _outError);
@@ -542,9 +689,9 @@ namespace box
             }
         }
 
-        Vec2f generateLines(Entity _e, Float _x, Float _y,
-                            Float _parentWidth, Float _parentHeight,
-                            Size _generation, DynamicArray<Line> & _outLines, Error & _outError)
+        std::tuple<Vec2f, Size> generateLines(Entity _e, Float _x, Float _y,
+                                              Float _parentWidth, Float _parentHeight,
+                                              Size _generation, DynamicArray<Line> & _outLines, Error & _outError)
         {
             // printf("GENERATING LINES FOR %s\n", _e.get<comps::Name>().cString());
             auto mchildren = _e.maybe<comps::Children>();
@@ -560,6 +707,7 @@ namespace box
             Float aw = availableWidth;
             Float currentX = _x;
             Float currentY = _y;
+            Size counter = 0;
             if (mchildren && (*mchildren).count())
             {
                 auto & children = *mchildren;
@@ -568,7 +716,7 @@ namespace box
                 for (Entity & child : children)
                 {
                     // printf("AW %f AH %f\n", aw, _availableHeight);
-                    layoutImpl(child, currentX, _y, _parentWidth, _parentHeight, _generation, _outError);
+                    counter += layoutImpl(child, currentX, _y, _parentWidth, _parentHeight, _generation, _outError);
                     //@TODO: Handle error?
                     STICK_ASSERT(child.hasComponent<comps::ComputedLayout>());
                     auto & cl = child.get<comps::ComputedLayout>();
@@ -713,16 +861,16 @@ namespace box
                     }
                 }
             }
-            return Vec2f(currentX, currentY);
+            return std::make_tuple(Vec2f(currentX, currentY), counter);
         }
 
-        void layoutImpl(Entity _e,
+        Size layoutImpl(Entity _e,
                         Float _x, Float _y,
                         Float _parentWidth, Float _parentHeight, Size _generation,
                         Error & _outError)
         {
             // printf("layoutImpl %s %lu %lu %f %f\n", _e.get<comps::Name>().cString(), generation(_e), _generation, _x, _y);
-
+            Size ret = 0;
             DirtyFlag df = dirty(_e);
             if (df == DirtyFlag::Dirty)
             {
@@ -782,7 +930,9 @@ namespace box
                 DynamicArray<Line> lines;
                 //if this is a relative width item, we save the widht of the resulting line of its children
                 // printf("GENERATING LINES %f %f %f %f\n", availableWidth, availableHeight, w, h);
-                Vec2f pos = generateLines(_e, x, y, w, h, _generation, lines, _outError);
+                auto data = generateLines(_e, x, y, w, h, _generation, lines, _outError);
+                ret = std::get<1>(data) + 1;
+                auto pos = std::get<0>(data);
 
                 //@TODO: Handle error?
 
@@ -800,6 +950,12 @@ namespace box
 
                 // printf("%s X %f Y %f MW %f MH %f\n", _e.get<comps::Name>().cString(), _x, _y, w, h);
                 _e.set<comps::ComputedLayout>(Rect(x, y, x + w, y + h), ml, mt, mr, mb, bWidthFixed, bHeightFixed, _generation);
+                STICK_ASSERT(_e.hasComponent<comps::Document>());
+                if (auto md = _e.maybe<comps::Document>())
+                {
+                    if (auto mdi = _e.get<comps::Document>().maybe<comps::DocumentInterface>())
+                        (*mdi)->markNodeForRendering(_e);
+                }
             }
             else if (df == DirtyFlag::PositionDirty)
             {
@@ -809,6 +965,8 @@ namespace box
                 {
                     // printf("MOVING BRO\n");
                     recursivelyMoveBy(_e, _x - (*mcl).box.min().x, _y - (*mcl).box.min().y);
+                    //TODO: Are we interested in the exact count of moved items here?
+                    ret = 1;
                 }
             }
             else if (df == DirtyFlag::ChildrenDirty)
@@ -817,16 +975,22 @@ namespace box
                 DynamicArray<Line> lines;
                 auto & box = _e.get<comps::ComputedLayout>().box;
                 _e.get<comps::ComputedLayout>().generation = _generation;
-                Vec2f pos = generateLines(_e, _x, _y, box.width(), box.height(), _generation, lines, _outError);
+                auto data = generateLines(_e, _x, _y, box.width(), box.height(), _generation, lines, _outError);
+                ret = std::get<1>(data);
             }
             _e.set<comps::Dirty>(DirtyFlag::NotDirty);
+            return ret;
         }
     }
 
     Error layout(Entity _e, Float _width, Float _height)
     {
         Error ret;
-        auto mparent = _e.maybe<comps::Parent>();
+
+        if (_e.get<comps::Document>() != _e)
+            return Error(ec::InvalidOperation, "You have to call layout on the document", STICK_FILE, STICK_LINE);
+
+        // auto mparent = _e.maybe<comps::Parent>();
         //this is the root node
         /*if(!mparent)
         {
@@ -843,8 +1007,17 @@ namespace box
             }
         }*/
 
-        detail::layoutImpl(_e, 0, 0, _width, _height, detail::nextGeneration(_e), ret);
+        auto count = detail::layoutImpl(_e, 0, 0, _width, _height, detail::nextGeneration(_e), ret);
 
+        // if something was relayouted, we mark the document dirty for rendering through
+        // the document interface.
+        if (count)
+        {
+            if (auto mdi = _e.get<comps::Document>().maybe<comps::DocumentInterface>())
+            {
+                (*mdi)->markDocumentForRendering();
+            }
+        }
         return ret;
     }
 
@@ -868,9 +1041,15 @@ namespace box
         return ret;
     }
 
-    void addEventCallback(Entity _e, const EventHandler::Callback & _cb)
+    CallbackID addEventCallback(Entity _e, const EventHandler::Callback & _cb)
     {
-        _e.get<comps::EventHandler>()->addEventCallback(_cb);
+        printf("C++ ADD EVENT CALLBACK\n");
+        return _e.get<comps::EventHandler>()->addEventCallback(_cb);
+    }
+
+    void removeEventCalback(Entity _e, CallbackID _id)
+    {
+        _e.get<comps::EventHandler>()->removeEventCallback(_id);
     }
 
     Entity nodeAtPosition(Entity _e, Float _x, Float _y)
@@ -903,5 +1082,27 @@ namespace box
 
         // nothing hit braa
         return Entity();
+    }
+
+    Entity findByName(brick::Entity _e, const String & _name)
+    {
+        return findChildRecursively(_e, [_name](Entity _child)
+        {
+            if (auto mname = _child.maybe<comps::Name>())
+                return *mname == _name;
+            return false;
+        });
+    }
+
+    void findByClass(brick::Entity _e, const String & _className, EntityArray & _outResults)
+    {
+        applyRecursively(_e, [_className, &_outResults](Entity _e)
+        {
+            if (auto mclass = _e.maybe<comps::Class>())
+            {
+                if (*mclass == _className)
+                    _outResults.append(_e);
+            }
+        });
     }
 }

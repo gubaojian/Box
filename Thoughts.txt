@@ -1,0 +1,45 @@
+Layout Dirty Flow
+==========================
+
+1. Mark self dirty
+2. Mark all children dirty whose sizing/positioning depends on self sizing
+3. Recursively mark parents either fully dirty if sizing positioning depends on self, or only mark children dirty otherwise
+
+Dirty Flags
+==========================
+
+renderer dirty flag -> indicates to the renderer weather the documents needs to be redrawn.
+geometry dirty flag -> indicates that the geometry of a dom node needs to be regenerated.
+
+
+
+Render Dirty Flow
+==========================
+
+1. Only mark self dirty
+
+
+SKIA???????
+
+
+BoxNode
+==========================
+
+-- Generates the geometry for itself and its border
+-- Generates the shadow for itself
+
+
+
+ImageNode <- BoxNode
+==========================
+
+-- loads the image into a texture
+-- Draws the same as boxnode but with its image texture
+
+
+TextNode <- BoxNode
+==========================
+
+-- renders its text to a texture
+-- possibly renders a text shadow, text stroke etc.
+

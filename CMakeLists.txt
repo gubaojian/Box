@@ -6,24 +6,32 @@ option(BuildPlayground "BuildPlayground" OFF)
 include_directories (${CMAKE_CURRENT_SOURCE_DIR} /usr/local/include)
 link_directories(/usr/local/lib ${CMAKE_INSTALL_PREFIX}/lib)
 
-set (BOXDEPS Stick Brick Scrub)
+find_package(OpenGL REQUIRED)
+
+set (BOXDEPS Stick Brick Scrub ${OPENGL_LIBRARIES})
 
 set (BOXINC 
 Box/BasicTypes.hpp
 Box/Box.hpp
+Box/BoxLua.hpp
+Box/CallbackID.hpp
 Box/Constants.hpp
+Box/DocumentEvents.hpp
 Box/Event.hpp
 Box/EventForwarder.hpp
 Box/EventPublisher.hpp
 Box/MouseEvents.hpp
 Box/MouseState.hpp
+Box/Render/GLRenderer.hpp
 )
 
 set (BOXSRC 
 Box/Box.cpp
 Box/Event.cpp
+Box/DocumentEvents.cpp
 Box/MouseEvents.cpp
 Box/MouseState.cpp
+Box/Render/GLRenderer.cpp
 )
 
 add_library (Box SHARED ${BOXSRC})

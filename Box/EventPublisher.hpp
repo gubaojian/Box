@@ -23,8 +23,10 @@ namespace box
             inline void publish(const MappedStorage & _callbacks, const EventType & _evt, PassAlongArgs..._args)
             {
                 auto it = _callbacks.callbackMap.find(_evt.eventTypeID());
+                printf("AAAAAAA\n");
                 if (it != _callbacks.callbackMap.end())
                 {
+                    printf("DA CB COUNT %lu\n", it->value.count());
                     for (auto * cb : it->value)
                     {
                         cb->call(_evt, std::forward<PassAlongArgs>(_args)...);
@@ -126,7 +128,9 @@ namespace box
         CallbackID addEventCallback(const Callback & _cb)
         {
             stick::ScopedLock<typename PublishingPolicy::MutexType> lock(m_policy.mutex);
-            m_storage.addCallback({nextID(), _cb.eventTypeID}, _cb.holder);
+            CallbackID id = {nextID(), _cb.eventTypeID};
+            m_storage.addCallback(id, _cb.holder);
+            return id;
         }
 
         /**
@@ -135,7 +139,7 @@ namespace box
          */
         void removeEventCallback(const CallbackID & _id)
         {
-            stick::ScopedLock<typename PublishingPolicy::MutexTye> lock(m_policy.mutex);
+            stick::ScopedLock<typename PublishingPolicy::MutexType> lock(m_policy.mutex);
             m_storage.removeCallback(_id);
         }
 
