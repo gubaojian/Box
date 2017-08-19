@@ -68,12 +68,12 @@ namespace box
             "#version 150 \n"
             "uniform mat4 transformProjection; \n"
             "in vec2 vertex; \n"
-            "in vec2 col; \n"
+            "in vec4 color; \n"
             "out vec4 icol;\n"
             "void main() \n"
             "{ \n"
             "gl_Position = transformProjection * vec4(vertex, 0.0, 1.0); \n"
-            "icol = col;\n"
+            "icol = color;\n"
             "} \n";
 
         static String fragmentShaderCode =
@@ -145,6 +145,7 @@ namespace box
                 Size i = 0;
                 for (const char * attr : _attr)
                 {
+                    printf("ENABLE ATTR %s %i\n", attr, i);
                     ASSERT_NO_GL_ERROR(glBindAttribLocation(program, i, attr));
                     ++i;
                 }
@@ -185,7 +186,11 @@ namespace box
             }
         }
 
-        GLRenderer::GLRenderer()
+        GLRenderer::GLRenderer() :
+            m_textureProgram(0),
+            m_colorProgram(0),
+            m_vao(0),
+            m_vbo(0)
         {
 
         }
@@ -198,15 +203,19 @@ namespace box
         Error GLRenderer::initialize(Entity _document)
         {
             m_document = _document;
+            m_document.set<box::comps::DocumentInterface>(this);
             Error ret = detail::createProgram(vertexShaderCode, fragmentShaderCode, {"vertex", "color"}, m_colorProgram);
             if (ret) return ret;
             ASSERT_NO_GL_ERROR(glGenVertexArrays(1, &m_vao));
             ASSERT_NO_GL_ERROR(glGenBuffers(1, &m_vbo));
             ASSERT_NO_GL_ERROR(glBindVertexArray(m_vao));
             ASSERT_NO_GL_ERROR(glBindBuffer(GL_ARRAY_BUFFER, m_vbo));
-            ASSERT_NO_GL_ERROR(glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), ((char *)0)));
-            ASSERT_NO_GL_ERROR(glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), ((char *)0 + sizeof(float) * 2)));
+            ASSERT_NO_GL_ERROR(glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 6 * sizeof(float), ((char *)0)));
             ASSERT_NO_GL_ERROR(glEnableVertexAttribArray(0));
+            ASSERT_NO_GL_ERROR(glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 6 * sizeof(float), ((char *)0 + sizeof(float) * 2)));
+            ASSERT_NO_GL_ERROR(glEnableVertexAttribArray(1));
+
+            return Error();
         }
 
         struct Vertex
@@ -218,14 +227,17 @@ namespace box
         Error GLRenderer::recursivelyDrawNode(Entity _e)
         {
             STICK_ASSERT(_e.hasComponent<box::comps::ComputedLayout>());
-            //draw background
+            // draw background
             if (auto mbg = _e.maybe<box::comps::Background>())
             {
                 //solid background
                 if ((*mbg).is<crunch::ColorRGBA>())
                 {
+                    printf("SOLID BG\n");
                     auto & col = (*mbg).get<crunch::ColorRGBA>();
+                    printf("%f %f %f %f\n", col.r, col.g, col.b, col.a);
                     auto & box = _e.get<box::comps::ComputedLayout>().box;
+                    printf("BOX TL %f %f\n", box.min().x, box.min().y);
                     DynamicArray<Vertex> vertices =
                     {
                         {box.min(), col},
@@ -233,8 +245,10 @@ namespace box
                         {box.min() + Vec2f(box.width(), 0) , col},
                         {box.max(), col}
                     };
+                    printf("vc %lu %lu\n", vertices.count(), &vertices[0].position.x);
                     ASSERT_NO_GL_ERROR(glBufferData(GL_ARRAY_BUFFER, sizeof(Vertex) * 4, &vertices[0].position.x, GL_DYNAMIC_DRAW));
                     ASSERT_NO_GL_ERROR(glDrawArrays(GL_TRIANGLE_STRIP, 0, 4));
+                    printf("JASKHJK\n");
                 }
                 //background image
                 else if ((*mbg).is<BackgroundImage>())
@@ -243,21 +257,35 @@ namespace box
                 }
             }
 
+            if (auto mchildren = _e.maybe<box::comps::Children>())
+            {
+                for (Entity c : *mchildren)
+                    recursivelyDrawNode(c);
+            }
+
             // DynamicArray<Vertex> vertices = {}
 
             //draw border
+            printf("ASJKHFJKHSJKHFKJASHFKJ\n");
+            return Error();
         }
 
         Error GLRenderer::render()
         {
+            printf("RENDER BRO %i %i\n", m_vao, m_vbo);
             ASSERT_NO_GL_ERROR(glUseProgram(m_colorProgram));
             ASSERT_NO_GL_ERROR(glBindVertexArray(m_vao));
             ASSERT_NO_GL_ERROR(glBindBuffer(GL_ARRAY_BUFFER, m_vbo));
+
+            auto m_transformProjection = crunch::Mat4f::ortho(0, 800, 600, 0, -1, 1);
+            ASSERT_NO_GL_ERROR(glUniformMatrix4fv(glGetUniformLocation(m_colorProgram, "transformProjection"), 1, false, m_transformProjection.ptr()));
             // ASSERT_NO_GL_ERROR(glViewport(0, 0, m_viewport.x, m_viewport.y));
 
             recursivelyDrawNode(m_document);
             // @TODO: Traverse the document tree twice, once to redraw all dirty nodes to a texture
             // and a second time to actually draw the document to screen.
+
+            return Error();
         }
 
         void GLRenderer::markDocumentForRendering()

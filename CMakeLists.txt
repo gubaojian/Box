@@ -2,7 +2,7 @@ cmake_minimum_required (VERSION 2.8.11)
 project (Box)
 set(CMAKE_CXX_FLAGS "-std=c++11 -fno-exceptions -w")
 
-option(BuildPlayground "BuildPlayground" OFF)
+option(BuildPlayground "BuildPlayground" ON)
 include_directories (${CMAKE_CURRENT_SOURCE_DIR} /usr/local/include)
 link_directories(/usr/local/lib ${CMAKE_INSTALL_PREFIX}/lib)
 

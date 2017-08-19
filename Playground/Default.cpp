@@ -1,7 +1,7 @@
 #include <Stick/FileUtilities.hpp>
 #include <Box/BoxLua.hpp>
 #include <Box/MouseEvents.hpp>
-#include <Box/DocumentInterface.hpp>
+#include <Box/Render/GLRenderer.hpp>
 #include <GLFW/glfw3.h>
 #include <GLAnnotate/GLAnnotate.hpp>
 #include <Crunch/Colors.hpp>
@@ -16,20 +16,20 @@ using namespace box;
 using namespace brick;
 using namespace crunch;
 
-class TestInterface : public DocumentInterface
-{
-public:
+// class TestInterface : public DocumentInterface
+// {
+// public:
 
-    void markDocumentForRendering()
-    {
-        printf("MARK DOCUMENT FOR RENDERING\n");
-    }
+//     void markDocumentForRendering()
+//     {
+//         printf("MARK DOCUMENT FOR RENDERING\n");
+//     }
 
-    void markNodeForRendering(Entity _e)
-    {
-        printf("MARK NODE FOR RENDERING\n");
-    }
-};
+//     void markNodeForRendering(Entity _e)
+//     {
+//         printf("MARK NODE FOR RENDERING\n");
+//     }
+// };
 
 namespace mycomps
 {
@@ -155,55 +155,62 @@ int main(int _argc, const char * _args[])
             return EXIT_FAILURE;
         }
 
-        TestInterface interface;
-        root = createDocument(&interface);
+        root = createDocument();
+        render::GLRenderer renderer;
+
+        auto err = renderer.initialize(root);
+        if(err)
+        {
+            printf("%s\n", err.message().cString());
+            return EXIT_FAILURE;
+        }
 
         setSize(root, 800.0f, 600.0f);
         setPadding(root, 50.0f);
 
-        root.set <mycomps::BackgroundColor>(0.5f, 0.3f, 0.1f, 1.0f);
+        root.set <comps::Background>(crunch::ColorRGBA(0.5f, 0.3f, 0.1f, 1.0f));
         auto a = createNode(root, "DAAA A");
         setHeight(a, 200.0f);
-        a.set <mycomps::BackgroundColor>(1.0f, 1.0f, 1.0f, 1.0f);
+        a.set <comps::Background>(crunch::ColorRGBA(1.0f, 1.0f, 1.0f, 1.0f));
         addChild(root, a);
         auto b = createNode(root, "DAAA FUUUUUCK B");
         setSize(b, 600.0f, 100.0f);
         // setMaxWidth(b, 500.0f);
         b.setAndApply<comps::MaxWidth>(box::markDirty, 500.0f);
         setMaxHeight(b, 200.0f);
-        b.set <mycomps::BackgroundColor>(0.3f, 0.3f, 0.3f, 1.0f);
+        b.set <comps::Background>(crunch::ColorRGBA(0.3f, 0.3f, 0.3f, 1.0f));
         addChild(a, b);
 
         auto c = createNode(root, "DAAA C");
         setWidth(c, 200.0f);
         c.set<comps::Justify>(Justify::End);
-        c.set <mycomps::BackgroundColor>(0.9f, 0.3f, 0.3f, 1.0f);
+        c.set <comps::Background>(crunch::ColorRGBA(0.9f, 0.3f, 0.3f, 1.0f));
         addChild(root, c);
 
         auto e = createNode(root, "E");
         setSize(e, 100.0f, 20.0f);
-        e.set <mycomps::BackgroundColor>(0.9f, 0.3f, 0.9f, 1.0f);
+        e.set <comps::Background>(crunch::ColorRGBA(0.9f, 0.3f, 0.9f, 1.0f));
         addChild(c, e);
 
         auto f = createNode(root, "F");
         setMargin(f, 20);
         setSize(f, 50.0f, 50.0f);
-        f.set <mycomps::BackgroundColor>(0.9f, 0.9f, 0.3f, 1.0f);
+        f.set <comps::Background>(crunch::ColorRGBA(0.9f, 0.9f, 0.3f, 1.0f));
         addChild(c, f);
 
         auto g = createNode(root, "G");
         setSize(g, 80.0f, 20.0f);
-        g.set <mycomps::BackgroundColor>(0.9f, 0.1f, 0.9f, 1.0f);
+        g.set <comps::Background>(crunch::ColorRGBA(0.9f, 0.1f, 0.9f, 1.0f));
         addChild(c, g);
 
         auto h = createNode(root, "H");
         setSize(h, 50.0f, 50.0f);
-        h.set <mycomps::BackgroundColor>(0.9f, 0.1f, 0.4f, 1.0f);
+        h.set <comps::Background>(crunch::ColorRGBA(0.9f, 0.1f, 0.4f, 1.0f));
         addChild(c, h);
 
         auto i = createNode(root, "I");
         setSize(i, 30.0f, 60.0f);
-        i.set <mycomps::BackgroundColor>(0.1f, 0.1f, 1.0f, 1.0f);
+        i.set <comps::Background>(crunch::ColorRGBA(0.1f, 0.1f, 1.0f, 1.0f));
         addChild(c, i);
         setMargin(i, 10);
         setMarginTop(i, -10);
@@ -211,13 +218,13 @@ int main(int _argc, const char * _args[])
         addEventCallback(i, [](const MouseDownEvent & _e, brick::Entity _self)
         {
             printf("CLICKED BABY\n");
-            _self.set<mycomps::BackgroundColor>(0.9f, 0.9f, 0.0f, 1.0f);
+            _self.set<comps::Background>(crunch::ColorRGBA(0.9f, 0.9f, 0.0f, 1.0f));
         });
 
         addEventCallback(i, [](const MouseUpEvent & _e, brick::Entity _self)
         {
             printf("RELEASE BABY\n");
-            _self.set<mycomps::BackgroundColor>(0.9f, 0.1f, 0.0f, 1.0f);
+            _self.set<comps::Background>(crunch::ColorRGBA(0.9f, 0.1f, 0.0f, 1.0f));
         });
 
         addEventCallback(i, [](const MouseMoveEvent & _e, brick::Entity _self)
@@ -228,14 +235,14 @@ int main(int _argc, const char * _args[])
         addEventCallback(i, [](const MouseEnterEvent & _e, brick::Entity _self)
         {
             printf("MOUSE ENTER!!!!!!!!!!!!\n");
-            _self.set<mycomps::BackgroundColor>(0.9f, 0.1f, 0.0f, 1.0f);
+            _self.set<comps::Background>(crunch::ColorRGBA(0.9f, 0.1f, 0.0f, 1.0f));
             setWidth(_self, 90.0f);
         });
 
         addEventCallback(i, [](const MouseLeaveEvent & _e, brick::Entity _self)
         {
             printf("MOUSE LEAVE!!!!!!!!!!!!\n");
-            _self.set<mycomps::BackgroundColor>(0.1f, 0.1f, 1.0f, 1.0f);
+            _self.set<comps::Background>(crunch::ColorRGBA(0.1f, 0.1f, 1.0f, 1.0f));
             setWidth(_self, 30.0f);
         });
 
@@ -256,8 +263,13 @@ int main(int _argc, const char * _args[])
             glClearColor(0, 0, 0, 1);
             glClear(GL_COLOR_BUFFER_BIT);
 
-            gla.ortho(0, 800, 600, 0, -1, 1);
-            recursivelyDrawDocument(root, gla);
+            // gla.ortho(0, 800, 600, 0, -1, 1);
+            // recursivelyDrawDocument(root, gla);
+
+            int width, height;
+            glfwGetFramebufferSize(window, &width, &height);
+            glViewport(0, 0, width, height);
+            renderer.render();
 
             glfwSwapBuffers(window);
             glfwPollEvents();
