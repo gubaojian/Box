@@ -14,6 +14,10 @@ namespace box
 
         virtual void markDocumentForRendering() = 0;
         virtual void markNodeForRendering(brick::Entity) = 0;
+        virtual void addedNode(brick::Entity) {}
+        virtual void removedNode(brick::Entity) {}
+        virtual void reversedChildren(brick::Entity) {}
+        virtual void nodeIsAnimatedChanged(brick::Entity) {}
     };
 }
 

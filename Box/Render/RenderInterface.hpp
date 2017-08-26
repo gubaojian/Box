@@ -30,14 +30,15 @@ namespace box
 
             virtual void destroyRenderBuffer(NativeRenderBufferHandle _handle);
 
-
+            
             virtual void drawGeometry(Vertex * _data, stick::Size _vertexCount, DrawMode _drawMode, const crunch::Mat4f * _transformation) = 0;
 
             virtual NativeTextureHandle createTexture(stick::Size _width, stick::Size _height);
 
             virtual void destroyTexture(NativeTextureHandle _handle);
 
-            virtual stick::Error loadTexture(NativeTextureHandle & _handle, const stick::URI & _source) = 0;
+
+            virtual void loadPixels(NativeTextureHandle _texture, stick::Size _xOff, stick::Size _yOff)
 
             virtual void update() {}
         };

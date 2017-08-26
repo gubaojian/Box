@@ -12,6 +12,11 @@ renderer dirty flag -> indicates to the renderer weather the documents needs to 
 geometry dirty flag -> indicates that the geometry of a dom node needs to be regenerated.
 
 
+RenderLayer Managment
+==========================
+
+
+
 
 Render Dirty Flow
 ==========================
@@ -42,4 +47,6 @@ TextNode <- BoxNode
 
 -- renders its text to a texture
 -- possibly renders a text shadow, text stroke etc.
+
+
 

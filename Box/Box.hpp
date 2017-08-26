@@ -132,6 +132,9 @@ namespace box
         //styling components that are independant of layouting
         using Background = brick::Component<ComponentName("Background"), stick::Variant<crunch::ColorRGBA, BackgroundImage>>;
 
+        //hint components
+        using IsAnimated = brick::Component<ComponentName("IsAnimated"), bool>;
+
         //event handling components
         using EventHandler = brick::Component<ComponentName("EventHandler"), stick::UniquePtr<EventHandler>>;
         using MouseOn = brick::Component<ComponentName("EventHandler"), bool>;
@@ -182,6 +185,9 @@ namespace box
     STICK_API void setMarginTop(brick::Entity _e, Value _value);
     STICK_API void setMarginRight(brick::Entity _e, Value _value);
     STICK_API void setMarginBottom(brick::Entity _e, Value _value);
+
+    //hint functions
+    STICK_API void setAnimated(brick::Entity _e, bool _val);
 
     STICK_API CallbackID addEventCallback(brick::Entity _e, const EventHandler::Callback & _cb);
     STICK_API void removeEventCalback(brick::Entity _e, CallbackID _id);

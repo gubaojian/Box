@@ -178,6 +178,12 @@ namespace box
                     {
                         detail::markDirty(*mp);
                     }
+
+                    // call the remove node handler on the document interface
+                    if (auto mdi = _e.get<comps::Document>().maybe<comps::DocumentInterface>())
+                    {
+                        (*mdi)->removedNode(_e);
+                    }
                 }
             }
         }
@@ -186,7 +192,15 @@ namespace box
         {
             removeChildren(_e);
             if (_bRemoveFromParent)
-                removeFromParent(_e);
+                removeFromParent(_e); //allready calls the DocumentInterface callback
+            else
+            {
+                // otherwise call it here
+                if (auto mdi = _e.get<comps::Document>().maybe<comps::DocumentInterface>())
+                {
+                    (*mdi)->removedNode(_e);
+                }
+            }
             _e.destroy();
         }
 
@@ -308,16 +322,21 @@ namespace box
         _e.get<comps::Children>().append(_child);
         _e.get<comps::EventHandler>()->addForwarder(*_child.get<comps::EventHandler>());
         _child.set<comps::Parent>(_e);
+
+        // call the added node handler on the document interface
+        if (auto mdi = _child.get<comps::Document>().maybe<comps::DocumentInterface>())
+        {
+            (*mdi)->addedNode(_child);
+        }
     }
 
     void removeChildren(Entity _e)
     {
-        if (_e.hasComponent<comps::Children>())
+        if (auto mc = _e.maybe<comps::Children>())
         {
-            auto & cs = _e.get<comps::Children>();
-            for (auto & child : cs)
+            for (auto & child : *mc)
                 detail::removeImpl(child, false);
-            cs.clear();
+            (*mc).clear();
         }
     }
 
@@ -337,6 +356,9 @@ namespace box
         return false;
     }
 
+    //@TODO: Either remove this function or call the removed/addedNode functions
+    //on the DocumentInterface (or intrudoce some other interface functions to propagate
+    //the draw order change to dependant modules that rely on it such as the renderer)
     void reverseChildren(Entity _e)
     {
         auto & cs = _e.get<comps::Children>();
@@ -551,6 +573,18 @@ namespace box
     {
         _e.set<comps::MarginBottom>(_value);
         detail::markDirty(_e);
+    }
+
+    void setAnimated(Entity _e, bool _val)
+    {
+        _e.set<comps::IsAnimated>(_val);
+        if (auto mdi = _e.get<comps::Document>().maybe<comps::DocumentInterface>())
+        {
+            (*mdi)->nodeIsAnimatedChanged(_e);
+            //@TODO: Not sure if we should call this here or let nodeIsAnimatedChanged take care of
+            //this depending on the implementation?
+            (*mdi)->markNodeForRendering(_e);
+        }
     }
 
     namespace detail
