@@ -67,6 +67,8 @@ namespace box
 
             void markDirty(bool _b);
 
+            void markChildrenDirty(bool _b);
+
             void addNode(brick::Entity _node);
 
             bool removeNode(brick::Entity _node);
@@ -79,10 +81,15 @@ namespace box
 
             const ChildArray & children() const;
 
+            bool isDirty() const;
+
+            bool childrenDirty() const;
+
 
         private:
 
             bool m_bDirty;
+            bool m_bChildrenDirty;
             NodeArray m_nodes;
             RenderLayer * m_parent;
             ChildArray m_children;
@@ -128,6 +135,8 @@ namespace box
 
             stick::Error compositeLayers();
 
+            stick::Error recursivelyDrawLayers(RenderLayer & _layer);
+
             stick::Error recursivelyDrawNode(brick::Entity _e);
 
             //used by recursivelyDrawNode to draw individual rectangles
@@ -145,8 +154,7 @@ namespace box
             //draw calls. 1 draw call in the case we can squeeze everyting in one texture.
 
             TextureAtlasPage m_textureAtlas;
-            stick::DynamicArray<RenderLayerPtr> m_layers;
-            RenderLayer * m_defaultLayer;
+            RenderLayerPtr m_rootLayer;
         };
     }
 }

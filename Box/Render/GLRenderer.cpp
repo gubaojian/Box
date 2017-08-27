@@ -294,14 +294,24 @@ namespace box
 
         RenderLayer::RenderLayer() :
             m_bDirty(true),
+            m_bChildrenDirty(true),
             m_parent(nullptr)
         {
 
         }
 
+        void RenderLayer::markChildrenDirty(bool _b)
+        {
+            m_bChildrenDirty = _b;
+            if (m_parent && _b)
+                m_parent->markChildrenDirty(true);
+        }
+
         void RenderLayer::markDirty(bool _b)
         {
             m_bDirty = _b;
+            if (m_parent && _b)
+                m_parent->markChildrenDirty(true);
         }
 
         void RenderLayer::addNode(Entity _node)
@@ -356,6 +366,26 @@ namespace box
             }
         }
 
+        bool RenderLayer::isDirty() const
+        {
+            return m_bDirty;
+        }
+
+        bool RenderLayer::childrenDirty() const
+        {
+            return m_bChildrenDirty;
+        }
+
+        const RenderLayer::NodeArray & RenderLayer::nodes() const
+        {
+            return m_nodes;
+        }
+
+        const RenderLayer::ChildArray & RenderLayer::children() const
+        {
+            return m_children;
+        }
+
         GLRenderer::GLRenderer() :
             m_textureProgram(0),
             m_colorProgram(0),
@@ -376,10 +406,9 @@ namespace box
             m_document = _document;
             m_document.set<box::comps::DocumentInterface>(this);
 
-            m_layers.append(stick::makeUnique<RenderLayer>());
-            m_defaultLayer = m_layers.last().get();
-
-            m_document.set<comps::RenderLayer>(m_defaultLayer);
+            m_rootLayer = stick::makeUnique<RenderLayer>();
+            m_document.set<comps::RenderLayer>(m_rootLayer.get());
+            m_rootLayer->addNode(m_document);
 
             Error ret = detail::createProgram(vertexShaderCode, fragmentShaderCode, {"vertex", "color"}, m_colorProgram);
             if (ret) return ret;
@@ -427,6 +456,42 @@ namespace box
             };
             ASSERT_NO_GL_ERROR(glBufferData(GL_ARRAY_BUFFER, sizeof(Vertex) * 4, &vertices[0].position.x, GL_DYNAMIC_DRAW));
             ASSERT_NO_GL_ERROR(glDrawArrays(GL_TRIANGLE_STRIP, 0, 4));
+        }
+
+        Error GLRenderer::recursivelyDrawLayers(RenderLayer & _layer)
+        {
+            if (_layer.isDirty())
+            {
+                for (auto node : _layer.nodes())
+                {
+                    STICK_ASSERT(node.hasComponent<box::comps::ComputedLayout>());
+                    // draw background
+                    if (auto mbg = node.maybe<box::comps::Background>())
+                    {
+                        //solid background
+                        if ((*mbg).is<crunch::ColorRGBA>())
+                        {
+                            auto & col = (*mbg).get<ColorRGBA>();
+                            auto & box = node.get<box::comps::ComputedLayout>().box;
+                            drawRectangle(box, col);
+                        }
+                        //background image
+                        else if ((*mbg).is<BackgroundImage>())
+                        {
+                            //@TODO
+                        }
+                    }
+                }
+                _layer.markDirty(false);
+            }
+            if (_layer.childrenDirty())
+            {
+                for (auto & child : _layer.children())
+                    recursivelyDrawLayers(*child);
+                _layer.markChildrenDirty(false);
+            }
+
+            return Error();
         }
 
         Error GLRenderer::recursivelyDrawNode(Entity _e)
@@ -484,7 +549,8 @@ namespace box
             // ASSERT_NO_GL_ERROR(glBindFramebuffer(GL_FRAMEBUFFER, 0));
             // glDrawBuffer(GL_FRONT_AND_BACK);
 
-            recursivelyDrawNode(m_document);
+            // recursivelyDrawNode(m_document);
+            recursivelyDrawLayers(*m_rootLayer);
 
             // ASSERT_NO_GL_ERROR(glBindFramebuffer(GL_FRAMEBUFFER, m_textureAtlas.renderBuffer.msaaFboHandle));
             // ASSERT_NO_GL_ERROR(glDrawBuffer(GL_COLOR_ATTACHMENT0));
@@ -545,6 +611,18 @@ namespace box
             else
             {
                 rl->addNode(_node);
+
+                //TODO: I think here we need to iterate over all the children
+                //and see if they have RenderLayers. We need to add them to
+                //rl, if they do!
+                if (auto mchildren = _node.maybe<box::comps::Children>())
+                {
+                    for (auto & child : *mchildren)
+                    {
+                        if (auto mrl = child.maybe<comps::RenderLayer>())
+                            rl->addChild(*mrl);
+                    }
+                }
             }
         }
 

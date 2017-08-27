@@ -721,6 +721,12 @@ namespace box
                     recursivelyMoveBy(child, _x, _y);
                 }
             }
+
+            //@TODO: Mark node for rendering or special callback for moving
+            //(as the render implications for moved objects are often times
+            //different than a full redraw)
+            if (auto mdi = _e.get<comps::Document>().maybe<comps::DocumentInterface>())
+                (*mdi)->markNodeForRendering(_e);
         }
 
         std::tuple<Vec2f, Size> generateLines(Entity _e, Float _x, Float _y,
@@ -984,12 +990,8 @@ namespace box
 
                 // printf("%s X %f Y %f MW %f MH %f\n", _e.get<comps::Name>().cString(), _x, _y, w, h);
                 _e.set<comps::ComputedLayout>(Rect(x, y, x + w, y + h), ml, mt, mr, mb, bWidthFixed, bHeightFixed, _generation);
-                STICK_ASSERT(_e.hasComponent<comps::Document>());
-                if (auto md = _e.maybe<comps::Document>())
-                {
-                    if (auto mdi = _e.get<comps::Document>().maybe<comps::DocumentInterface>())
-                        (*mdi)->markNodeForRendering(_e);
-                }
+                if (auto mdi = _e.get<comps::Document>().maybe<comps::DocumentInterface>())
+                    (*mdi)->markNodeForRendering(_e);
             }
             else if (df == DirtyFlag::PositionDirty)
             {
@@ -999,7 +1001,7 @@ namespace box
                 {
                     // printf("MOVING BRO\n");
                     recursivelyMoveBy(_e, _x - (*mcl).box.min().x, _y - (*mcl).box.min().y);
-                    //TODO: Are we interested in the exact count of moved items here?
+                    //@TODO: Are we interested in the exact count of moved items here?
                     ret = 1;
                 }
             }
