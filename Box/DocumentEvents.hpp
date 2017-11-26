@@ -1,11 +1,11 @@
 #ifndef BOX_DOCUMENTEVENTS_HPP
 #define BOX_DOCUMENTEVENTS_HPP
 
-#include <Box/Event.hpp>
+#include <Stick/Event.hpp>
 
 namespace box
 {
-    class STICK_API ComponentChangedEvent : public EventT<ComponentChangedEvent>
+    class STICK_API ComponentChangedEvent : public stick::EventT<ComponentChangedEvent>
     {
     public:
 

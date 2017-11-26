@@ -544,19 +544,12 @@ namespace box
 
             auto m_transformProjection = crunch::Mat4f::ortho(0, 800, 600, 0, -1, 1);
             ASSERT_NO_GL_ERROR(glUniformMatrix4fv(glGetUniformLocation(m_colorProgram, "transformProjection"), 1, false, m_transformProjection.ptr()));
-            // ASSERT_NO_GL_ERROR(glViewport(0, 0, m_viewport.x, m_viewport.y));
 
-            // ASSERT_NO_GL_ERROR(glBindFramebuffer(GL_FRAMEBUFFER, 0));
-            // glDrawBuffer(GL_FRONT_AND_BACK);
-
-            // recursivelyDrawNode(m_document);
+            //recursivelyDrawNode(m_document);
             recursivelyDrawLayers(*m_rootLayer);
 
-            // ASSERT_NO_GL_ERROR(glBindFramebuffer(GL_FRAMEBUFFER, m_textureAtlas.renderBuffer.msaaFboHandle));
-            // ASSERT_NO_GL_ERROR(glDrawBuffer(GL_COLOR_ATTACHMENT0));
-
-            // @TODO: Traverse the document tree twice, once to redraw all dirty nodes to a texture
-            // and a second time to actually draw the document to screen.
+            //@TODO:
+            //Compositing pass of all layers
 
             return Error();
         }
@@ -604,23 +597,47 @@ namespace box
             RenderLayer * rl = detail::findRenderLayer(_node.get<box::comps::Parent>());
             STICK_ASSERT(rl);
 
+            RenderLayer * nrl = nullptr;
             if (auto mrl = _node.maybe<comps::RenderLayer>())
-            {
-                rl->addChild(*mrl);
-            }
-            else
-            {
-                rl->addNode(_node);
+                nrl = *mrl;
 
-                //TODO: I think here we need to iterate over all the children
-                //and see if they have RenderLayers. We need to add them to
-                //rl, if they do!
+            if (!nrl && shouldHaveItsOwnRenderLayer(_node))
+            {
+                nrl = defaultAllocator().create<RenderLayer>();
+                rl->addChild(nrl);
+                nrl->addNode(_node);
+
+                //iterate over all the direct children and see if there are any RenderLayers
+                //that we need to attach to this new one.
                 if (auto mchildren = _node.maybe<box::comps::Children>())
                 {
                     for (auto & child : *mchildren)
                     {
                         if (auto mrl = child.maybe<comps::RenderLayer>())
-                            rl->addChild(*mrl);
+                            nrl->addChild(*mrl);
+                    }
+                }
+            }
+            else
+            {
+                if (nrl)
+                {
+                    rl->addChild(nrl);
+                }
+                else
+                {
+                    rl->addNode(_node);
+
+                    //TODO: I think here we need to iterate over all the children
+                    //and see if they have RenderLayers. We need to add them to
+                    //rl, if they do!
+                    if (auto mchildren = _node.maybe<box::comps::Children>())
+                    {
+                        for (auto & child : *mchildren)
+                        {
+                            if (auto mrl = child.maybe<comps::RenderLayer>())
+                                rl->addChild(*mrl);
+                        }
                     }
                 }
             }

@@ -1,7 +1,7 @@
 #ifndef BOX_MOUSEEVENTS_HPP
 #define BOX_MOUSEEVENTS_HPP
 
-#include <Box/Event.hpp>
+#include <Stick/Event.hpp>
 #include <Box/MouseState.hpp>
 
 namespace box
@@ -37,7 +37,7 @@ namespace box
 
     class STICK_API MouseMoveEvent :
         public MouseEvent,
-        public EventT<MouseMoveEvent>
+        public stick::EventT<MouseMoveEvent>
     {
     public:
 
@@ -51,7 +51,7 @@ namespace box
 
     class STICK_API MouseDragEvent :
         public MouseEvent,
-        public EventT<MouseDragEvent>
+        public stick::EventT<MouseDragEvent>
     {
     public:
 
@@ -60,7 +60,7 @@ namespace box
 
     class STICK_API MouseDownEvent :
         public MouseEvent,
-        public EventT<MouseDownEvent>
+        public stick::EventT<MouseDownEvent>
     {
     public:
 
@@ -69,7 +69,7 @@ namespace box
 
     class STICK_API MouseUpEvent :
         public MouseEvent,
-        public EventT<MouseUpEvent>
+        public stick::EventT<MouseUpEvent>
     {
     public:
 
@@ -78,7 +78,7 @@ namespace box
 
     class STICK_API MouseScrollEvent :
         public MouseEvent,
-        public EventT<MouseScrollEvent>
+        public stick::EventT<MouseScrollEvent>
     {
     public:
 
@@ -87,7 +87,7 @@ namespace box
 
     class STICK_API MouseEnterEvent :
         public MouseEvent,
-        public EventT<MouseEnterEvent>
+        public stick::EventT<MouseEnterEvent>
     {
     public:
 
@@ -96,7 +96,7 @@ namespace box
 
     class STICK_API MouseLeaveEvent :
         public MouseEvent,
-        public EventT<MouseLeaveEvent>
+        public stick::EventT<MouseLeaveEvent>
     {
     public:
 

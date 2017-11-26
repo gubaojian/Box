@@ -14,7 +14,20 @@ geometry dirty flag -> indicates that the geometry of a dom node needs to be reg
 
 RenderLayer Managment
 ==========================
+- if node is new, check if it needs its own RenderLayer:
+    - if so, create it, add the node to it, and attach the new RenderLayer as a child to the last one.
+    - if not, add the new node to the last RenderLayer
 
+- if node is not new:
+    - if it has no special RenderLayer, remove from last RenderLayer and add to the Render layer of the parent node
+    - if it has a special RenderLayer, remove special RenderLayer from parent and add it as a child to the parent nodes RenderLayer
+
+
+More advanced rendering for the future
+Render Area Computation
+==========================
+- Tile based rendering approach
+- Render Area is Viewport + x tiles on each edge
 
 
 

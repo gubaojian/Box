@@ -7,10 +7,10 @@
 #include <Stick/Error.hpp>
 #include <Stick/Variant.hpp>
 #include <Stick/URI.hpp>
+#include <Stick/EventForwarder.hpp>
 #include <Box/BasicTypes.hpp>
 #include <Box/Constants.hpp>
 #include <Box/DocumentEvents.hpp>
-#include <Box/EventForwarder.hpp>
 
 #include <cmath>
 
@@ -83,7 +83,7 @@ namespace box
         BackgroundImageWrap wrap;
     };
 
-    using EventHandler = EventForwarderT<Event, detail::ForwardingPolicyBasic, detail::PublishingPolicyBasic, brick::Entity>;
+    using EventHandler = stick::EventForwarderT<stick::Event, stick::detail::ForwardingPolicyBasic, stick::detail::PublishingPolicyBasic, brick::Entity>;
     using NodeTag = stick::Variant<TagType, stick::String>;
 
     namespace comps
@@ -189,8 +189,8 @@ namespace box
     //hint functions
     STICK_API void setAnimated(brick::Entity _e, bool _val);
 
-    STICK_API CallbackID addEventCallback(brick::Entity _e, const EventHandler::Callback & _cb);
-    STICK_API void removeEventCalback(brick::Entity _e, CallbackID _id);
+    STICK_API stick::CallbackID addEventCallback(brick::Entity _e, const EventHandler::Callback & _cb);
+    STICK_API void removeEventCalback(brick::Entity _e, stick::CallbackID _id);
 
     STICK_API brick::Entity nodeAtPosition(brick::Entity _e, Float _x, Float _y);
 

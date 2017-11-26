@@ -17,9 +17,6 @@ Box/BoxLua.hpp
 Box/CallbackID.hpp
 Box/Constants.hpp
 Box/DocumentEvents.hpp
-Box/Event.hpp
-Box/EventForwarder.hpp
-Box/EventPublisher.hpp
 Box/MouseEvents.hpp
 Box/MouseState.hpp
 Box/Render/GLRenderer.hpp
@@ -27,7 +24,6 @@ Box/Render/GLRenderer.hpp
 
 set (BOXSRC 
 Box/Box.cpp
-Box/Event.cpp
 Box/DocumentEvents.cpp
 Box/MouseEvents.cpp
 Box/MouseState.cpp
